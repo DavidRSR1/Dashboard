@@ -48,8 +48,6 @@
 
       <NotificationPreferencesPanel />
 
-      <ExtensionInstallPanel />
-
       <section class="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
         <h2 class="text-lg font-semibold text-slate-900">Bitwarden Authenticator</h2>
         <p class="mt-1 text-sm text-slate-600">
@@ -86,7 +84,6 @@ import { hasVerifiedTotp } from "@/lib/mfa";
 import { getShareToken, visitorUrl } from "@/lib/profile";
 import MfaSetupPanel from "@/components/profile/MfaSetupPanel.vue";
 import NotificationPreferencesPanel from "@/components/profile/NotificationPreferencesPanel.vue";
-import ExtensionInstallPanel from "@/components/profile/ExtensionInstallPanel.vue";
 
 const router = useRouter();
 const userEmail = ref<string | null>(null);

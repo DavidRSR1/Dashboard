@@ -2,13 +2,42 @@
   <section class="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
     <h2 class="text-lg font-semibold text-slate-900">Lembretes de prazo</h2>
     <p class="mt-1 text-sm text-slate-600">
-      Configure quando ser alertado sobre atividades não finalizadas. Sincronizado com a extensão
-      Chrome/Edge.
+      Receba alertas no computador com um clique. Não precisa instalar extensão nem baixar nada.
     </p>
 
-    <label class="mt-4 flex items-center gap-2 text-sm text-slate-700">
+    <div
+      v-if="permission === 'granted'"
+      class="mt-4 flex items-center gap-2 rounded-lg bg-emerald-50 px-4 py-3 text-sm text-emerald-800"
+    >
+      <span class="h-2 w-2 rounded-full bg-emerald-500" />
+      Notificações ativas neste navegador
+    </div>
+
+    <div
+      v-else-if="permission === 'denied'"
+      class="mt-4 rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-900"
+    >
+      Notificações bloqueadas. Clique no cadeado na barra de endereço do site e permita
+      notificações.
+    </div>
+
+    <button
+      v-else-if="permission !== 'unsupported'"
+      type="button"
+      :disabled="activating"
+      class="mt-4 w-full rounded-lg bg-emerald-700 px-4 py-3 text-sm font-semibold text-white hover:bg-emerald-800 disabled:opacity-50"
+      @click="activateNotifications"
+    >
+      {{ activating ? "Aguardando permissão..." : "Ativar notificações" }}
+    </button>
+
+    <p v-else class="mt-4 text-sm text-slate-500">
+      Seu navegador não suporta notificações. Use Chrome, Edge ou Firefox atualizado.
+    </p>
+
+    <label class="mt-5 flex items-center gap-2 text-sm text-slate-700">
       <input v-model="prefs.enabled" type="checkbox" class="rounded border-slate-300" />
-      Ativar lembretes
+      Enviar lembretes conforme os horários abaixo
     </label>
 
     <div class="mt-4 space-y-3">
@@ -55,17 +84,26 @@
     <button
       type="button"
       :disabled="saving"
-      class="mt-4 w-full rounded-lg bg-emerald-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-800 disabled:opacity-50"
+      class="mt-4 w-full rounded-lg border border-emerald-700 bg-white px-4 py-2.5 text-sm font-semibold text-emerald-800 hover:bg-emerald-50 disabled:opacity-50"
       @click="save"
     >
       {{ saving ? "Salvando..." : "Salvar lembretes" }}
     </button>
+
+    <p class="mt-4 text-xs text-slate-500">
+      Os alertas aparecem enquanto você estiver logado com o site aberto em alguma aba.
+    </p>
   </section>
 </template>
 
 <script setup lang="ts">
 import { onMounted, reactive, ref } from "vue";
 import { supabase } from "@/lib/supabase/client";
+import {
+  getNotificationPermission,
+  requestNotificationPermission,
+  syncDeadlineRemindersWithPermission,
+} from "@/lib/deadlineReminders";
 import { getNotificationPreferences, saveNotificationPreferences } from "@/lib/notifications";
 import type { NotificationPreferences, ReminderOffset } from "@/types/notifications";
 
@@ -75,8 +113,10 @@ const prefs = reactive<NotificationPreferences>({
 });
 
 const saving = ref(false);
+const activating = ref(false);
 const saveMessage = ref("");
 const saveError = ref("");
+const permission = ref(getNotificationPermission());
 let userId: string | null = null;
 
 onMounted(async () => {
@@ -97,6 +137,13 @@ function addOffset() {
 
 function removeOffset(index: number) {
   prefs.offsets.splice(index, 1);
+}
+
+async function activateNotifications() {
+  activating.value = true;
+  permission.value = await requestNotificationPermission();
+  activating.value = false;
+  syncDeadlineRemindersWithPermission();
 }
 
 async function save() {
@@ -122,6 +169,12 @@ async function save() {
     return;
   }
 
-  saveMessage.value = "Preferências salvas e sincronizadas.";
+  if (prefs.enabled && permission.value !== "granted") {
+    await activateNotifications();
+  } else {
+    syncDeadlineRemindersWithPermission();
+  }
+
+  saveMessage.value = "Preferências salvas.";
 }
 </script>
