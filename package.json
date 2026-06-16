@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vue-tsc -b && vite build",
+    "pack:extension": "node scripts/pack-extension.mjs",
+    "build": "npm run pack:extension && vue-tsc -b && vite build",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -17,6 +18,7 @@
     "@tailwindcss/vite": "^4.1.4",
     "@types/node": "^22.15.3",
     "@vitejs/plugin-vue": "^5.2.3",
+    "archiver": "^7.0.1",
     "tailwindcss": "^4.1.4",
     "typescript": "~5.8.3",
     "vite": "^6.3.5",
