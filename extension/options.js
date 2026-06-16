@@ -18,9 +18,17 @@ const offsetsEl = document.getElementById("offsets");
 const addOffsetBtn = document.getElementById("add-offset");
 const savePrefsBtn = document.getElementById("save-prefs");
 const prefsStatus = document.getElementById("prefs-status");
+const testNotifyBtn = document.getElementById("test-notify-btn");
+const testStatus = document.getElementById("test-status");
 
 let session = null;
 let offsets = [...DEFAULT_PREFERENCES.offsets];
+
+function triggerBackgroundCheck() {
+  chrome.runtime.sendMessage({ type: "check-now" }).catch(() => {
+    // Service worker pode estar iniciando; ignorar erro transitório.
+  });
+}
 
 function renderOffsets() {
   offsetsEl.innerHTML = "";
@@ -74,6 +82,7 @@ async function loadSession() {
       offsets = prefs.offsets ?? [...DEFAULT_PREFERENCES.offsets];
     }
     renderOffsets();
+    triggerBackgroundCheck();
   }
 }
 
@@ -89,6 +98,7 @@ loginBtn.addEventListener("click", async () => {
     await chrome.storage.local.set({ session, notified: {} });
     loginStatus.textContent = "Login realizado.";
     await loadSession();
+    triggerBackgroundCheck();
   } catch (err) {
     loginStatus.textContent = err.message;
   }
@@ -114,8 +124,31 @@ savePrefsBtn.addEventListener("click", async () => {
       offsets: offsets.filter((o) => o.value > 0),
     });
     prefsStatus.textContent = "Salvo e sincronizado com o site.";
+    triggerBackgroundCheck();
   } catch (err) {
     prefsStatus.textContent = err.message;
+  }
+});
+
+testNotifyBtn.addEventListener("click", async () => {
+  testStatus.textContent = "Enviando notificação de teste...";
+  testStatus.className = "status";
+
+  try {
+    const response = await chrome.runtime.sendMessage({ type: "test-notification" });
+
+    if (response?.ok) {
+      testStatus.textContent =
+        "Notificação enviada. Verifique o canto da tela (ou a central de notificações do Windows).";
+      return;
+    }
+
+    testStatus.textContent = response?.error ?? "Não foi possível enviar a notificação de teste.";
+    testStatus.className = "status error";
+  } catch {
+    testStatus.textContent =
+      "Extensão indisponível. Recarregue em chrome://extensions e tente novamente.";
+    testStatus.className = "status error";
   }
 });
 

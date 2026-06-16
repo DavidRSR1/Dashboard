@@ -14,6 +14,25 @@
       ⬇ Baixar extensão (.zip)
     </a>
 
+    <div class="mt-5 rounded-lg border border-slate-200 bg-slate-50 p-4">
+      <h3 class="text-sm font-semibold text-slate-800">Testar notificações</h3>
+      <p class="mt-1 text-sm text-slate-600">
+        Envia um alerta de exemplo pela extensão instalada. Use para confirmar que o Windows e o
+        Chrome estão exibindo os lembretes.
+      </p>
+      <button
+        type="button"
+        :disabled="testing"
+        class="mt-3 w-full rounded-lg border border-emerald-700 bg-white px-4 py-2.5 text-sm font-semibold text-emerald-800 hover:bg-emerald-50 disabled:opacity-50 sm:w-auto"
+        @click="runTest"
+      >
+        {{ testing ? "Enviando..." : "Testar notificação" }}
+      </button>
+      <p v-if="testMessage" class="mt-3 text-sm" :class="testError ? 'text-red-600' : 'text-emerald-700'">
+        {{ testMessage }}
+      </p>
+    </div>
+
     <details class="mt-5 rounded-lg border border-slate-200 bg-slate-50 p-4">
       <summary class="cursor-pointer text-sm font-semibold text-slate-800">
         Como instalar no Chrome ou Edge
@@ -42,9 +61,32 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref } from "vue";
+import { testExtensionNotification } from "@/lib/extensionBridge";
 
 const downloadUrl = computed(
   () => `${window.location.origin}/dashboard-cronograma-extension.zip`,
 );
+
+const testing = ref(false);
+const testMessage = ref("");
+const testError = ref(false);
+
+async function runTest() {
+  testing.value = true;
+  testMessage.value = "";
+  testError.value = false;
+
+  try {
+    await testExtensionNotification();
+    testMessage.value =
+      "Notificação enviada. Verifique o canto da tela ou a central de notificações do Windows.";
+  } catch (err) {
+    testError.value = true;
+    testMessage.value =
+      err instanceof Error ? err.message : "Falha ao testar notificação da extensão.";
+  } finally {
+    testing.value = false;
+  }
+}
 </script>

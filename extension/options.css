@@ -111,6 +111,28 @@ button.secondary {
   color: #047857;
 }
 
+.status.error {
+  color: #b91c1c;
+}
+
+.test-block {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.test-block h3 {
+  margin: 0 0 8px;
+  font-size: 0.9375rem;
+}
+
+.test-hint {
+  margin: 0 0 8px;
+  font-size: 0.8125rem;
+  color: #64748b;
+  line-height: 1.4;
+}
+
 .hint {
   font-size: 0.75rem;
   color: #94a3b8;
