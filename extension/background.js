@@ -19,6 +19,8 @@ import {
 } from "./lib/supabase.js";
 
 let checkTimer = null;
+const NOTIFICATION_ICON_PNG =
+  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAIAAAACACAQAAADDPmHLAAAA60lEQVR42u3RQQ0AIBDAsAP/nuGNAvZoFSzZnpl5Z8cP4G0M0BgGNAZgDMMYhjEMYxjGMIxhGMMwhmEMwxiGMQxjGMYwjGEYwzCGYQzDGIYxDGMYxjCMYRjDMIZhDMMYhjEMYxjGMIxhGMMwhmEMwxiGMQxjGMYwjGEYwzCGYQzDGIYxDGMYxjCMYRjDMIZhDMMYhjEMYxjGMIxhGMMwhmEMwxiGMQxjGMYwjGEYwzCGYQzDGIYxDGMYxjCMYRjDMIZhDMMYhjEMYxjGMIxhGMMwhmEMw/4BXyoCi7A0T7oAAAAASUVORK5CYII=";
 
 function startChecking() {
   if (checkTimer) return;
@@ -65,7 +67,7 @@ async function sendTestNotification() {
   try {
     await chrome.notifications.create(notificationId, {
       type: "basic",
-      iconUrl: chrome.runtime.getURL("icon.svg"),
+      iconUrl: NOTIFICATION_ICON_PNG,
       title: "Teste — Dashboard Cronograma",
       message: "Se você viu isto, as notificações da extensão estão funcionando.",
       priority: 2,
@@ -121,7 +123,7 @@ async function checkDeadlines() {
       try {
         await chrome.notifications.create(slotKey, {
           type: "basic",
-          iconUrl: chrome.runtime.getURL("icon.svg"),
+          iconUrl: NOTIFICATION_ICON_PNG,
           title: "Atividade ainda não finalizada",
           message: `${activity.atividade} — vence em ${timeLeft} (alerta ${formatOffsetLabel(offset)} antes)`,
           priority: 2,
