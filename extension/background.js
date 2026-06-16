@@ -8,10 +8,10 @@ import {
   formatOffsetLabel,
   formatTimeUntil,
   getDeadlineDate,
+  getDueReminderOffsets,
   isActivityPending,
   normalizePreferences,
   reminderSlotKey,
-  shouldFireReminder,
 } from "./lib/deadlines.js";
 import {
   fetchActivities,
@@ -131,24 +131,23 @@ async function checkDeadlines() {
     const deadline = getDeadlineDate(activity);
     if (!deadline || deadline <= now) continue;
 
-    for (const offset of prefs.offsets) {
-      if (!shouldFireReminder(deadline, offset, now)) continue;
+    const dueOffsets = getDueReminderOffsets(deadline, prefs.offsets, now);
+    const offset = dueOffsets.find((item) => !nextNotified[reminderSlotKey(activity.id, item, deadline)]);
+    if (!offset) continue;
 
-      const slotKey = reminderSlotKey(activity.id, offset, deadline);
-      if (nextNotified[slotKey]) continue;
+    const timeLeft = formatTimeUntil(deadline, now);
+    try {
+      await createAppNotification(reminderSlotKey(activity.id, offset, deadline), {
+        title: "Atividade ainda não finalizada",
+        message: `${activity.atividade} — vence em ${timeLeft} (alerta ${formatOffsetLabel(offset)} antes)`,
+      });
+    } catch (err) {
+      console.error("[Dashboard] Falha ao criar notificação:", err);
+      continue;
+    }
 
-      const timeLeft = formatTimeUntil(deadline, now);
-      try {
-        await createAppNotification(slotKey, {
-          title: "Atividade ainda não finalizada",
-          message: `${activity.atividade} — vence em ${timeLeft} (alerta ${formatOffsetLabel(offset)} antes)`,
-        });
-      } catch (err) {
-        console.error("[Dashboard] Falha ao criar notificação:", err);
-        continue;
-      }
-
-      nextNotified[slotKey] = now.toISOString();
+    for (const dueOffset of dueOffsets) {
+      nextNotified[reminderSlotKey(activity.id, dueOffset, deadline)] = now.toISOString();
     }
   }
 

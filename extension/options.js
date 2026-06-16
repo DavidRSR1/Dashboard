@@ -96,7 +96,7 @@ loginBtn.addEventListener("click", async () => {
       user: data.user,
     };
     await chrome.storage.local.set({ session, notified: {} });
-    loginStatus.textContent = "Login realizado.";
+    loginStatus.textContent = "Login realizado. Histórico de alertas zerado.";
     await loadSession();
     triggerBackgroundCheck();
   } catch (err) {

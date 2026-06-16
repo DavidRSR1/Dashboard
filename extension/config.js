@@ -12,6 +12,5 @@ export const DEFAULT_PREFERENCES = {
 
 export const CHECK_ALARM = "check-deadlines";
 export const CHECK_INTERVAL_MS = 30_000;
-export const REMINDER_WINDOW_MS = 30_000;
 /** Alarme de 1 min para reativar o service worker quando o navegador o suspender */
 export const ALARM_WAKEUP_MINUTES = 1;

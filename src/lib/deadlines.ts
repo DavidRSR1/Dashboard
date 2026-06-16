@@ -84,10 +84,19 @@ export function shouldFireReminder(
   deadline: Date,
   offset: ReminderOffset,
   now = new Date(),
-  windowMs = 30 * 1000,
 ): boolean {
   const fireAt = getReminderFireTime(deadline, offset);
-  return now >= fireAt && now.getTime() - fireAt.getTime() <= windowMs && deadline > now;
+  return now >= fireAt && deadline > now;
+}
+
+export function getDueReminderOffsets(
+  deadline: Date,
+  offsets: ReminderOffset[],
+  now = new Date(),
+): ReminderOffset[] {
+  return offsets
+    .filter((offset) => shouldFireReminder(deadline, offset, now))
+    .sort((a, b) => offsetToMilliseconds(a) - offsetToMilliseconds(b));
 }
 
 export function getActiveReminders(

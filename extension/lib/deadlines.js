@@ -1,5 +1,3 @@
-import { REMINDER_WINDOW_MS } from "../config.js";
-
 const DEFAULT_END_HOUR = 23;
 const DEFAULT_END_MINUTE = 59;
 
@@ -32,9 +30,16 @@ export function getReminderFireTime(deadline, offset) {
   return new Date(deadline.getTime() - offsetToMs(offset));
 }
 
-export function shouldFireReminder(deadline, offset, now = new Date(), windowMs = REMINDER_WINDOW_MS) {
+/** Válido desde o horário do lembrete até o prazo final (não só em uma janela curta). */
+export function shouldFireReminder(deadline, offset, now = new Date()) {
   const fireAt = getReminderFireTime(deadline, offset);
-  return now >= fireAt && now.getTime() - fireAt.getTime() <= windowMs && deadline > now;
+  return now >= fireAt && deadline > now;
+}
+
+export function getDueReminderOffsets(deadline, offsets, now = new Date()) {
+  return offsets
+    .filter((offset) => shouldFireReminder(deadline, offset, now))
+    .sort((a, b) => offsetToMs(a) - offsetToMs(b));
 }
 
 export function formatOffsetLabel(offset) {
