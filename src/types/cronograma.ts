@@ -9,6 +9,7 @@ export type CronogramaAtividade = {
   atividade: string;
   data_back_banco: string | null;
   data_front: string | null;
+  hora_fim: string | null;
   status: ActivityStatus;
   categoria: string;
   pr_url: string | null;
@@ -22,6 +23,7 @@ export type CronogramaFormData = {
   atividade: string;
   data_back_banco: string;
   data_front: string;
+  hora_fim: string;
   status: ActivityStatus;
   categoria: string;
   pr_url: string;

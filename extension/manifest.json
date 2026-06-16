@@ -1,0 +1,21 @@
+{
+  "manifest_version": 3,
+  "name": "Dashboard Cronograma — Lembretes",
+  "version": "1.0.0",
+  "description": "Notificações de prazos de atividades não finalizadas do Dashboard.",
+  "permissions": ["notifications", "alarms", "storage"],
+  "host_permissions": [
+    "https://czvoxwrttitvczonsdkg.supabase.co/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Dashboard Cronograma"
+  },
+  "icons": {
+    "128": "icon.svg"
+  },
+  "options_page": "options.html"
+}

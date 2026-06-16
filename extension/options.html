@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Dashboard — Opções</title>
+    <link rel="stylesheet" href="options.css" />
+  </head>
+  <body>
+    <main>
+      <h1>Dashboard Cronograma</h1>
+      <p class="subtitle">Login e lembretes sincronizados com o site.</p>
+
+      <section id="login-section">
+        <h2>Conta</h2>
+        <label>E-mail<input id="email" type="email" /></label>
+        <label>Senha<input id="password" type="password" /></label>
+        <button id="login-btn" type="button">Entrar</button>
+        <button id="logout-btn" type="button" class="secondary" hidden>Sair</button>
+        <p id="login-status" class="status"></p>
+      </section>
+
+      <section id="prefs-section" hidden>
+        <h2>Lembretes</h2>
+        <label class="checkbox">
+          <input id="enabled" type="checkbox" checked />
+          Ativar notificações
+        </label>
+        <div id="offsets"></div>
+        <button id="add-offset" type="button" class="secondary">+ Adicionar lembrete</button>
+        <button id="save-prefs" type="button">Salvar preferências</button>
+        <p id="prefs-status" class="status"></p>
+      </section>
+
+      <p class="hint">
+        As notificações funcionam com o navegador aberto (site pode estar fechado). Verificação a
+        cada 5 minutos.
+      </p>
+    </main>
+    <script type="module" src="options.js"></script>
+  </body>
+</html>

@@ -35,6 +35,7 @@
             v-for="item in byStatus[status]"
             :key="item.id"
             :item="item"
+            :reminder-offsets="reminderOffsets"
           >
             <template v-if="!readonly" #actions>
               <button
@@ -67,10 +68,12 @@ import {
   type ActivityStatus,
   type CronogramaAtividade,
 } from "@/types/cronograma";
+import type { ReminderOffset } from "@/types/notifications";
 
 const props = defineProps<{
   items: CronogramaAtividade[];
   readonly?: boolean;
+  reminderOffsets?: ReminderOffset[];
 }>();
 
 const emit = defineEmits<{

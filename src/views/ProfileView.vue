@@ -47,6 +47,17 @@
       </section>
 
       <section class="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h2 class="text-lg font-semibold text-slate-900">Extensão Chrome/Edge</h2>
+        <p class="mt-1 text-sm text-slate-600">
+          Instale a pasta <code class="rounded bg-slate-100 px-1">extension/</code> do repositório
+          em <strong>chrome://extensions</strong> → Modo desenvolvedor → Carregar sem compactação.
+          Use o mesmo login e as preferências de lembretes acima.
+        </p>
+      </section>
+
+      <NotificationPreferencesPanel />
+
+      <section class="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
         <h2 class="text-lg font-semibold text-slate-900">Bitwarden Authenticator</h2>
         <p class="mt-1 text-sm text-slate-600">
           Configure ou gerencie a autenticação em duas etapas da sua conta. Não é exigida para
@@ -81,6 +92,7 @@ import { supabase } from "@/lib/supabase/client";
 import { hasVerifiedTotp } from "@/lib/mfa";
 import { getShareToken, visitorUrl } from "@/lib/profile";
 import MfaSetupPanel from "@/components/profile/MfaSetupPanel.vue";
+import NotificationPreferencesPanel from "@/components/profile/NotificationPreferencesPanel.vue";
 
 const router = useRouter();
 const userEmail = ref<string | null>(null);

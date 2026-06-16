@@ -38,6 +38,18 @@
           </div>
         </div>
 
+        <div>
+          <label class="mb-1 block text-sm font-medium text-slate-700">
+            Horário de fim (opcional)
+          </label>
+          <input
+            v-model="form.hora_fim"
+            type="time"
+            class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 sm:max-w-xs"
+          />
+          <p class="mt-1 text-xs text-slate-500">Se vazio, o prazo será às 23:59 do dia de fim.</p>
+        </div>
+
         <div class="grid gap-4 sm:grid-cols-2">
           <div>
             <label class="mb-1 block text-sm font-medium text-slate-700">Status</label>
@@ -107,6 +119,7 @@ import {
   type CronogramaFormData,
 } from "@/types/cronograma";
 import { toInputDate } from "@/lib/format";
+import { toInputTime } from "@/lib/deadlines";
 
 const props = defineProps<{
   open: boolean;
@@ -122,6 +135,7 @@ const emptyForm = (): CronogramaFormData => ({
   atividade: "",
   data_back_banco: "",
   data_front: "",
+  hora_fim: "",
   status: "nao_iniciado",
   categoria: "Gamificação",
   pr_url: "",
@@ -140,6 +154,7 @@ watch(
         atividade: props.initial.atividade,
         data_back_banco: toInputDate(props.initial.data_back_banco),
         data_front: toInputDate(props.initial.data_front),
+        hora_fim: toInputTime(props.initial.hora_fim),
         status: props.initial.status,
         categoria: props.initial.categoria,
         pr_url: props.initial.pr_url ?? "",

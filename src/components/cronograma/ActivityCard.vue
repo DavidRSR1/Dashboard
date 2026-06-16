@@ -28,8 +28,15 @@
 
         <div class="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-500">
           <span>Início: {{ formatDateBR(item.data_back_banco) }}</span>
-          <span>Fim: {{ formatDateBR(item.data_front) }}</span>
+          <span>Fim: {{ formatDeadlineBR(item) }}</span>
         </div>
+
+        <p
+          v-if="deadlineHint"
+          class="mt-2 rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-xs font-medium text-amber-800"
+        >
+          {{ deadlineHint }}
+        </p>
 
         <p
           v-if="item.observacoes"
@@ -59,6 +66,9 @@
 
 <script setup lang="ts">
 import { formatDateBR } from "@/lib/format";
+import { formatDeadlineBR, formatTimeUntil, getDeadlineDate, isActivityPending } from "@/lib/deadlines";
+import { computed } from "vue";
+import type { ReminderOffset } from "@/types/notifications";
 import {
   STATUS_BAR_COLORS,
   STATUS_COLORS,
@@ -67,11 +77,19 @@ import {
   type CronogramaAtividade,
 } from "@/types/cronograma";
 
-withDefaults(
+const props = withDefaults(
   defineProps<{
     item: CronogramaAtividade;
     showStatus?: boolean;
+    reminderOffsets?: ReminderOffset[];
   }>(),
-  { showStatus: false },
+  { showStatus: false, reminderOffsets: () => [] },
 );
+
+const deadlineHint = computed(() => {
+  if (!isActivityPending(props.item.status) || props.reminderOffsets.length === 0) return null;
+  const deadline = getDeadlineDate(props.item);
+  if (!deadline || deadline <= new Date()) return null;
+  return `Prazo em ${formatTimeUntil(deadline)}`;
+});
 </script>

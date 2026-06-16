@@ -57,7 +57,7 @@
                 left: `${row.left}%`,
                 width: `${Math.max(row.width, 2)}%`,
               }"
-              :title="`${formatDateBR(row.item.data_back_banco)} → ${formatDateBR(row.item.data_front)}`"
+              :title="formatDeadlineBR(row.item)"
             />
             <div
               class="pointer-events-none absolute inset-0 grid"
@@ -86,7 +86,7 @@
           <p class="text-sm font-medium text-slate-900">{{ item.atividade }}</p>
         </div>
         <p class="mt-1 text-xs text-slate-500">
-          Início → Fim: {{ formatDateBR(item.data_back_banco) }} → {{ formatDateBR(item.data_front) }}
+          Início → Fim: {{ formatDateBR(item.data_back_banco) }} → {{ formatDeadlineBR(item) }}
         </p>
         <p v-if="item.observacoes" class="mt-2 text-xs text-slate-600">
           {{ item.observacoes }}
@@ -99,6 +99,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { formatDateBR, monthLabel, parseDate, startOfMonth } from "@/lib/format";
+import { formatDeadlineBR, getDeadlineDate } from "@/lib/deadlines";
 import {
   KANBAN_ORDER,
   STATUS_BAR_COLORS,
@@ -156,8 +157,8 @@ const totalMs = computed(() => {
 
 const rows = computed(() =>
   itemsWithDates.value.map((item) => {
-    const start = parseDate(item.data_back_banco) ?? parseDate(item.data_front)!;
-    const end = parseDate(item.data_front) ?? parseDate(item.data_back_banco)!;
+    const start = getDeadlineDate({ data_front: item.data_back_banco, hora_fim: null }) ?? parseDate(item.data_back_banco)!;
+    const end = getDeadlineDate(item) ?? parseDate(item.data_front)!;
     const rangeStart = range.value.start.getTime();
     const left = ((start.getTime() - rangeStart) / totalMs.value) * 100;
     const width = ((end.getTime() - start.getTime()) / totalMs.value) * 100;

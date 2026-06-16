@@ -1,0 +1,48 @@
+body {
+  width: 320px;
+  margin: 0;
+  font-family: system-ui, sans-serif;
+  background: #f8fafc;
+  color: #0f172a;
+}
+
+header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 14px;
+  background: #047857;
+  color: white;
+}
+
+header h1 {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+header a {
+  color: #d1fae5;
+  font-size: 0.75rem;
+}
+
+#content {
+  padding: 12px 14px;
+  font-size: 0.8125rem;
+}
+
+.item {
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 10px;
+  margin-bottom: 8px;
+}
+
+.item strong {
+  display: block;
+  margin-bottom: 4px;
+}
+
+.muted {
+  color: #64748b;
+}

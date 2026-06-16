@@ -70,6 +70,7 @@
         <KanbanBoard
           v-else-if="viewMode === 'kanban'"
           :items="filtered"
+          :reminder-offsets="reminderOffsets"
           @edit="openEdit"
           @delete="handleDelete"
         />
@@ -101,11 +102,13 @@ import { computed, onMounted, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import { supabase } from "@/lib/supabase/client";
 import { getShareToken, visitorUrl } from "@/lib/profile";
+import { getNotificationPreferences } from "@/lib/notifications";
 import {
   type CronogramaAtividade,
   type CronogramaFormData,
   type ViewMode,
 } from "@/types/cronograma";
+import type { ReminderOffset } from "@/types/notifications";
 import ActivityFormModal from "@/components/ActivityFormModal.vue";
 import ViewModeToggle from "@/components/cronograma/ViewModeToggle.vue";
 import KanbanBoard from "@/components/cronograma/KanbanBoard.vue";
@@ -125,6 +128,7 @@ const formOpen = ref(false);
 const editing = ref<CronogramaAtividade | null>(null);
 const userEmail = ref<string | null>(null);
 const gestorLink = ref<string | null>(null);
+const reminderOffsets = ref<ReminderOffset[]>([]);
 
 const categorias = computed(() =>
   Array.from(new Set(atividades.value.map((a) => a.categoria))),
@@ -166,6 +170,8 @@ onMounted(async () => {
     if (token) {
       gestorLink.value = `${window.location.origin}${visitorUrl(token)}`;
     }
+    const prefs = await getNotificationPreferences(user.id);
+    if (prefs.enabled) reminderOffsets.value = prefs.offsets;
   }
 
   await loadAtividades();
@@ -191,6 +197,7 @@ async function handleFormSubmit(data: CronogramaFormData) {
         atividade: data.atividade,
         data_back_banco: data.data_back_banco || null,
         data_front: data.data_front || null,
+        hora_fim: data.hora_fim || null,
         status: data.status,
         categoria: data.categoria,
         pr_url: data.pr_url || null,
@@ -208,6 +215,7 @@ async function handleFormSubmit(data: CronogramaFormData) {
       atividade: data.atividade,
       data_back_banco: data.data_back_banco || null,
       data_front: data.data_front || null,
+      hora_fim: data.hora_fim || null,
       status: data.status,
       categoria: data.categoria,
       pr_url: data.pr_url || null,

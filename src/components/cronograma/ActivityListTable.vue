@@ -5,7 +5,7 @@
         <tr class="bg-slate-50 text-slate-600">
           <th class="px-4 py-3 font-semibold">Atividade</th>
           <th class="px-4 py-3 font-semibold">Início</th>
-          <th class="px-4 py-3 font-semibold">Fim</th>
+          <th class="px-4 py-3 font-semibold">Fim / Horário</th>
           <th class="px-4 py-3 font-semibold">Status</th>
           <th class="px-4 py-3 font-semibold">Observações</th>
           <th class="px-4 py-3 font-semibold">PR</th>
@@ -31,7 +31,7 @@
             </div>
           </td>
           <td class="px-4 py-3 text-slate-600">{{ formatDateBR(item.data_back_banco) }}</td>
-          <td class="px-4 py-3 text-slate-600">{{ formatDateBR(item.data_front) }}</td>
+          <td class="px-4 py-3 text-slate-600">{{ formatDeadlineBR(item) }}</td>
           <td class="px-4 py-3">
             <span
               class="inline-flex rounded-full border px-2.5 py-0.5 text-xs font-medium"
@@ -80,6 +80,7 @@
 
 <script setup lang="ts">
 import { formatDateBR } from "@/lib/format";
+import { formatDeadlineBR } from "@/lib/deadlines";
 import {
   STATUS_BAR_COLORS,
   STATUS_COLORS,
