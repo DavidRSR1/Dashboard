@@ -23,16 +23,31 @@
           v-for="(item, index) in items"
           v-else
           :key="item.id"
-          :class="index % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'"
+          :class="
+            isOverdue(item)
+              ? 'bg-red-50'
+              : index % 2 === 0
+                ? 'bg-white'
+                : 'bg-slate-50/50'
+          "
         >
           <td class="px-4 py-3">
             <div class="flex items-center gap-2">
-              <span class="h-2 w-2 shrink-0 rounded-full" :class="STATUS_BAR_COLORS[item.status]" />
-              <span class="font-medium text-slate-900">{{ item.atividade }}</span>
+              <span
+                class="h-2 w-2 shrink-0 rounded-full"
+                :class="isOverdue(item) ? 'bg-red-500' : STATUS_BAR_COLORS[item.status]"
+              />
+              <span class="font-medium" :class="isOverdue(item) ? 'text-red-950' : 'text-slate-900'">
+                {{ item.atividade }}
+              </span>
             </div>
           </td>
-          <td class="px-4 py-3 text-slate-600">{{ formatDateBR(item.data_back_banco) }}</td>
-          <td class="px-4 py-3 text-slate-600">{{ formatDeadlineBR(item) }}</td>
+          <td class="px-4 py-3" :class="isOverdue(item) ? 'text-red-800/80' : 'text-slate-600'">
+            {{ formatDateBR(item.data_back_banco) }}
+          </td>
+          <td class="px-4 py-3" :class="isOverdue(item) ? 'text-red-800/80' : 'text-slate-600'">
+            {{ formatDeadlineBR(item) }}
+          </td>
           <td v-if="showDeadline" class="px-4 py-3">
             <span
               v-if="deadlineLabel(item)"
@@ -100,6 +115,7 @@ import {
   formatDeadlineBR,
   formatTimeUntil,
   getDeadlineDate,
+  isActivityOverdue,
   isActivityPending,
   isApproachingDeadline,
 } from "@/lib/deadlines";
@@ -129,6 +145,10 @@ const emit = defineEmits<{
 const now = useCronogramaNow();
 
 const showDeadline = computed(() => props.reminderOffsets.length > 0);
+
+function isOverdue(item: CronogramaAtividade): boolean {
+  return isActivityOverdue(item, now.value);
+}
 
 function deadlineLabel(item: CronogramaAtividade): string | null {
   if (!isActivityPending(item.status) || props.reminderOffsets.length === 0) return null;

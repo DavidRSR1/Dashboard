@@ -67,6 +67,18 @@ export function isActivityPending(status: ActivityStatus): boolean {
   return status !== "pronto";
 }
 
+export function isActivityOverdue(
+  atividade: Pick<CronogramaAtividade, "status" | "data_front" | "hora_fim">,
+  now = new Date(),
+): boolean {
+  if (!isActivityPending(atividade.status)) return false;
+
+  const deadline = getDeadlineDate(atividade);
+  if (!deadline) return false;
+
+  return deadline < now;
+}
+
 export function formatTimeUntil(deadline: Date, now = new Date()): string {
   const diff = deadline.getTime() - now.getTime();
   if (diff <= 0) return "prazo vencido";

@@ -50,8 +50,8 @@
             <div
               class="absolute inset-y-1 rounded-md shadow-sm transition"
               :class="[
-                STATUS_BAR_COLORS[row.item.status],
-                row.item.status === 'em_progresso' ? 'animate-pulse' : '',
+                isOverdue(row.item) ? 'bg-red-500' : STATUS_BAR_COLORS[row.item.status],
+                !isOverdue(row.item) && row.item.status === 'em_progresso' ? 'animate-pulse' : '',
               ]"
               :style="{
                 left: `${row.left}%`,
@@ -78,14 +78,23 @@
       <article
         v-for="item in itemsWithDates"
         :key="item.id"
-        class="rounded-lg border bg-white p-3 shadow-sm"
-        :class="STATUS_COLUMN_STYLES[item.status].border"
+        class="rounded-lg border p-3 shadow-sm"
+        :class="
+          isOverdue(item)
+            ? 'border-red-200 bg-red-50/90'
+            : ['bg-white', STATUS_COLUMN_STYLES[item.status].border]
+        "
       >
         <div class="flex items-center gap-2">
-          <span class="h-2 w-2 rounded-full" :class="STATUS_BAR_COLORS[item.status]" />
-          <p class="text-sm font-medium text-slate-900">{{ item.atividade }}</p>
+          <span
+            class="h-2 w-2 rounded-full"
+            :class="isOverdue(item) ? 'bg-red-500' : STATUS_BAR_COLORS[item.status]"
+          />
+          <p class="text-sm font-medium" :class="isOverdue(item) ? 'text-red-950' : 'text-slate-900'">
+            {{ item.atividade }}
+          </p>
         </div>
-        <p class="mt-1 text-xs text-slate-500">
+        <p class="mt-1 text-xs" :class="isOverdue(item) ? 'text-red-800/80' : 'text-slate-500'">
           Início → Fim: {{ formatDateBR(item.data_back_banco) }} → {{ formatDeadlineBR(item) }}
         </p>
         <p v-if="item.observacoes" class="mt-2 text-xs text-slate-600">
@@ -99,7 +108,8 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { formatDateBR, monthLabel, parseDate, startOfMonth } from "@/lib/format";
-import { formatDeadlineBR, getDeadlineDate } from "@/lib/deadlines";
+import { formatDeadlineBR, getDeadlineDate, isActivityOverdue } from "@/lib/deadlines";
+import { useCronogramaNow } from "@/composables/useCronogramaNow";
 import {
   KANBAN_ORDER,
   STATUS_BAR_COLORS,
@@ -111,6 +121,12 @@ import {
 const props = defineProps<{
   items: CronogramaAtividade[];
 }>();
+
+const now = useCronogramaNow();
+
+function isOverdue(item: CronogramaAtividade): boolean {
+  return isActivityOverdue(item, now.value);
+}
 
 const itemsWithDates = computed(() =>
   props.items.filter((i) => i.data_back_banco || i.data_front),
