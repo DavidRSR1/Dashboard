@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Dashboard Cronograma — Lembretes",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "Notificações de prazos de atividades não finalizadas do Dashboard.",
   "permissions": ["notifications", "alarms", "storage"],
   "host_permissions": [
@@ -16,7 +16,9 @@
     "default_title": "Dashboard Cronograma"
   },
   "icons": {
-    "128": "icon.svg"
+    "16": "icon.png",
+    "48": "icon.png",
+    "128": "icon.png"
   },
   "options_page": "options.html",
   "content_scripts": [

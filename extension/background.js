@@ -19,8 +19,29 @@ import {
 } from "./lib/supabase.js";
 
 let checkTimer = null;
-const NOTIFICATION_ICON_PNG =
-  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAIAAAACACAQAAADDPmHLAAAA60lEQVR42u3RQQ0AIBDAsAP/nuGNAvZoFSzZnpl5Z8cP4G0M0BgGNAZgDMMYhjEMYxjGMIxhGMMwhmEMwxiGMQxjGMYwjGEYwzCGYQzDGIYxDGMYxjCMYRjDMIZhDMMYhjEMYxjGMIxhGMMwhmEMwxiGMQxjGMYwjGEYwzCGYQzDGIYxDGMYxjCMYRjDMIZhDMMYhjEMYxjGMIxhGMMwhmEMwxiGMQxjGMYwjGEYwzCGYQzDGIYxDGMYxjCMYRjDMIZhDMMYhjEMYxjGMIxhGMMwhmEMw/4BXyoCi7A0T7oAAAAASUVORK5CYII=";
+
+const NOTIFICATION_ICON_URL = chrome.runtime.getURL("icon.png");
+
+async function createAppNotification(id, { title, message }) {
+  const withIcon = {
+    type: "basic",
+    title,
+    message,
+    priority: 2,
+    iconUrl: NOTIFICATION_ICON_URL,
+  };
+
+  try {
+    await chrome.notifications.create(id, withIcon);
+    return;
+  } catch (err) {
+    const errorText = err instanceof Error ? err.message : String(err);
+    if (!/image/i.test(errorText)) throw err;
+
+    const { iconUrl: _icon, ...withoutIcon } = withIcon;
+    await chrome.notifications.create(id, withoutIcon);
+  }
+}
 
 function startChecking() {
   if (checkTimer) return;
@@ -65,12 +86,9 @@ async function sendTestNotification() {
   const notificationId = `test-${Date.now()}`;
 
   try {
-    await chrome.notifications.create(notificationId, {
-      type: "basic",
-      iconUrl: NOTIFICATION_ICON_PNG,
+    await createAppNotification(notificationId, {
       title: "Teste — Dashboard Cronograma",
       message: "Se você viu isto, as notificações da extensão estão funcionando.",
-      priority: 2,
     });
     return { ok: true };
   } catch (err) {
@@ -121,12 +139,9 @@ async function checkDeadlines() {
 
       const timeLeft = formatTimeUntil(deadline, now);
       try {
-        await chrome.notifications.create(slotKey, {
-          type: "basic",
-          iconUrl: NOTIFICATION_ICON_PNG,
+        await createAppNotification(slotKey, {
           title: "Atividade ainda não finalizada",
           message: `${activity.atividade} — vence em ${timeLeft} (alerta ${formatOffsetLabel(offset)} antes)`,
-          priority: 2,
         });
       } catch (err) {
         console.error("[Dashboard] Falha ao criar notificação:", err);
