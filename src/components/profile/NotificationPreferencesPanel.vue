@@ -2,8 +2,8 @@
   <section class="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
     <h2 class="text-lg font-semibold text-slate-900">Lembretes de prazo</h2>
     <p class="mt-1 text-sm text-slate-600">
-      Configure quando ser alertado sobre atividades não finalizadas. Sincronizado com a extensão
-      Chrome/Edge.
+      Alertas para atividades em qualquer status, exceto &quot;Pronto&quot;. Sincronizado com a
+      extensão Chrome/Edge (verificação a cada 30 segundos).
     </p>
 
     <label class="mt-4 flex items-center gap-2 text-sm text-slate-700">

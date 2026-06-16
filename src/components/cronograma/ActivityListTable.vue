@@ -6,6 +6,7 @@
           <th class="px-4 py-3 font-semibold">Atividade</th>
           <th class="px-4 py-3 font-semibold">Início</th>
           <th class="px-4 py-3 font-semibold">Fim / Horário</th>
+          <th v-if="showDeadline" class="px-4 py-3 font-semibold">Prazo</th>
           <th class="px-4 py-3 font-semibold">Status</th>
           <th class="px-4 py-3 font-semibold">Observações</th>
           <th class="px-4 py-3 font-semibold">PR</th>
@@ -14,7 +15,7 @@
       </thead>
       <tbody>
         <tr v-if="items.length === 0">
-          <td :colspan="readonly ? 6 : 7" class="px-4 py-8 text-center text-slate-400">
+          <td :colspan="readonly ? (showDeadline ? 7 : 6) : showDeadline ? 8 : 7" class="px-4 py-8 text-center text-slate-400">
             Nenhuma atividade nesta seção.
           </td>
         </tr>
@@ -32,6 +33,20 @@
           </td>
           <td class="px-4 py-3 text-slate-600">{{ formatDateBR(item.data_back_banco) }}</td>
           <td class="px-4 py-3 text-slate-600">{{ formatDeadlineBR(item) }}</td>
+          <td v-if="showDeadline" class="px-4 py-3">
+            <span
+              v-if="deadlineLabel(item)"
+              class="inline-flex rounded-full border px-2.5 py-0.5 text-xs font-medium"
+              :class="
+                isApproaching(item)
+                  ? 'border-amber-300 bg-amber-50 text-amber-900'
+                  : 'border-slate-200 bg-slate-50 text-slate-600'
+              "
+            >
+              {{ deadlineLabel(item) }}
+            </span>
+            <span v-else class="text-slate-300">—</span>
+          </td>
           <td class="px-4 py-3">
             <span
               class="inline-flex rounded-full border px-2.5 py-0.5 text-xs font-medium"
@@ -79,8 +94,17 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from "vue";
 import { formatDateBR } from "@/lib/format";
-import { formatDeadlineBR } from "@/lib/deadlines";
+import {
+  formatDeadlineBR,
+  formatTimeUntil,
+  getDeadlineDate,
+  isActivityPending,
+  isApproachingDeadline,
+} from "@/lib/deadlines";
+import { useCronogramaNow } from "@/composables/useCronogramaNow";
+import type { ReminderOffset } from "@/types/notifications";
 import {
   STATUS_BAR_COLORS,
   STATUS_COLORS,
@@ -88,13 +112,33 @@ import {
   type CronogramaAtividade,
 } from "@/types/cronograma";
 
-defineProps<{
-  items: CronogramaAtividade[];
-  readonly?: boolean;
-}>();
+const props = withDefaults(
+  defineProps<{
+    items: CronogramaAtividade[];
+    readonly?: boolean;
+    reminderOffsets?: ReminderOffset[];
+  }>(),
+  { readonly: false, reminderOffsets: () => [] },
+);
 
 const emit = defineEmits<{
   edit: [item: CronogramaAtividade];
   delete: [item: CronogramaAtividade];
 }>();
+
+const now = useCronogramaNow();
+
+const showDeadline = computed(() => props.reminderOffsets.length > 0);
+
+function deadlineLabel(item: CronogramaAtividade): string | null {
+  if (!isActivityPending(item.status) || props.reminderOffsets.length === 0) return null;
+  const deadline = getDeadlineDate(item);
+  if (!deadline || deadline <= now.value) return null;
+  return formatTimeUntil(deadline, now.value);
+}
+
+function isApproaching(item: CronogramaAtividade): boolean {
+  if (!isActivityPending(item.status) || props.reminderOffsets.length === 0) return false;
+  return isApproachingDeadline(item, props.reminderOffsets, now.value);
+}
 </script>

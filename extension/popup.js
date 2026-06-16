@@ -1,5 +1,5 @@
 import { DEFAULT_PREFERENCES } from "./config.js";
-import { formatTimeUntil, getDeadlineDate, normalizePreferences } from "./lib/deadlines.js";
+import { formatTimeUntil, getDeadlineDate, isActivityPending, normalizePreferences } from "./lib/deadlines.js";
 import { fetchActivities, fetchNotificationPreferences } from "./lib/supabase.js";
 
 const content = document.getElementById("content");
@@ -22,7 +22,7 @@ async function init() {
     const now = new Date();
 
     const pending = activities
-      .filter((a) => a.status !== "pronto" && a.data_front)
+      .filter((a) => isActivityPending(a.status) && a.data_front)
       .map((a) => ({ a, deadline: getDeadlineDate(a) }))
       .filter(({ deadline }) => deadline && deadline > now)
       .sort((x, y) => x.deadline - y.deadline)

@@ -78,13 +78,15 @@
         <ActivityListTable
           v-else
           :items="filtered"
+          :reminder-offsets="reminderOffsets"
           @edit="openEdit"
           @delete="handleDelete"
         />
       </div>
 
       <p class="text-xs text-slate-500">
-        Status "Pronto" indica PR aberta e funcionando em dev.
+        Status "Pronto" indica PR aberta e funcionando em dev. Dados e prazos atualizam
+        automaticamente a cada 30 segundos.
       </p>
     </main>
 
@@ -98,11 +100,13 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import { supabase } from "@/lib/supabase/client";
 import { getShareToken, visitorUrl } from "@/lib/profile";
 import { getNotificationPreferences } from "@/lib/notifications";
+import { provideCronogramaNow } from "@/composables/useCronogramaNow";
+import { SYNC_INTERVAL_MS } from "@/lib/syncInterval";
 import {
   type CronogramaAtividade,
   type CronogramaFormData,
@@ -116,6 +120,10 @@ import CalendarTimeline from "@/components/cronograma/CalendarTimeline.vue";
 import ActivityListTable from "@/components/cronograma/ActivityListTable.vue";
 
 const router = useRouter();
+
+provideCronogramaNow();
+
+let syncTimer: ReturnType<typeof setInterval> | null = null;
 
 const atividades = ref<CronogramaAtividade[]>([]);
 const loading = ref(true);
@@ -140,9 +148,11 @@ const filtered = computed(() =>
 
 watch(viewMode, (mode) => localStorage.setItem("cronograma-view", mode));
 
-async function loadAtividades() {
-  loading.value = true;
-  error.value = null;
+async function loadAtividades(silent = false) {
+  if (!silent) {
+    loading.value = true;
+    error.value = null;
+  }
 
   const { data, error: fetchError } = await supabase
     .from("cronograma_atividades")
@@ -150,13 +160,29 @@ async function loadAtividades() {
     .order("data_back_banco", { ascending: true });
 
   if (fetchError) {
-    error.value = fetchError.message;
-    atividades.value = [];
+    if (!silent) {
+      error.value = fetchError.message;
+      atividades.value = [];
+    }
   } else {
     atividades.value = (data as CronogramaAtividade[]) ?? [];
   }
 
-  loading.value = false;
+  if (!silent) loading.value = false;
+}
+
+async function refreshPreferences() {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return;
+
+  const prefs = await getNotificationPreferences(user.id);
+  reminderOffsets.value = prefs.enabled ? prefs.offsets : [];
+}
+
+async function syncCronograma() {
+  await Promise.all([loadAtividades(true), refreshPreferences()]);
 }
 
 onMounted(async () => {
@@ -170,11 +196,15 @@ onMounted(async () => {
     if (token) {
       gestorLink.value = `${window.location.origin}${visitorUrl(token)}`;
     }
-    const prefs = await getNotificationPreferences(user.id);
-    if (prefs.enabled) reminderOffsets.value = prefs.offsets;
+    await refreshPreferences();
   }
 
   await loadAtividades();
+  syncTimer = setInterval(() => void syncCronograma(), SYNC_INTERVAL_MS);
+});
+
+onUnmounted(() => {
+  if (syncTimer) clearInterval(syncTimer);
 });
 
 function openCreate() {

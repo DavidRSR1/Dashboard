@@ -34,8 +34,9 @@
     </details>
 
     <p class="mt-4 text-xs text-slate-500">
-      Os lembretes configurados acima são sincronizados com a extensão após o login.
-      Instalação manual é gratuita; não é necessário publicar na loja do Chrome.
+      Os lembretes acima valem para todos os status exceto &quot;Pronto&quot;, com checagem a cada
+      30 segundos após o login na extensão. Instalação manual é gratuita; não é necessário publicar
+      na loja do Chrome.
     </p>
   </section>
 </template>

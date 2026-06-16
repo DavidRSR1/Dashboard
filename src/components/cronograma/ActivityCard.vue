@@ -33,7 +33,12 @@
 
         <p
           v-if="deadlineHint"
-          class="mt-2 rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-xs font-medium text-amber-800"
+          class="mt-2 rounded-md border px-2 py-1 text-xs font-medium"
+          :class="
+            isApproaching
+              ? 'border-amber-300 bg-amber-100 text-amber-900'
+              : 'border-slate-200 bg-slate-50 text-slate-700'
+          "
         >
           {{ deadlineHint }}
         </p>
@@ -66,7 +71,14 @@
 
 <script setup lang="ts">
 import { formatDateBR } from "@/lib/format";
-import { formatDeadlineBR, formatTimeUntil, getDeadlineDate, isActivityPending } from "@/lib/deadlines";
+import {
+  formatDeadlineBR,
+  formatTimeUntil,
+  getDeadlineDate,
+  isActivityPending,
+  isApproachingDeadline,
+} from "@/lib/deadlines";
+import { useCronogramaNow } from "@/composables/useCronogramaNow";
 import { computed } from "vue";
 import type { ReminderOffset } from "@/types/notifications";
 import {
@@ -86,10 +98,17 @@ const props = withDefaults(
   { showStatus: false, reminderOffsets: () => [] },
 );
 
+const now = useCronogramaNow();
+
 const deadlineHint = computed(() => {
   if (!isActivityPending(props.item.status) || props.reminderOffsets.length === 0) return null;
   const deadline = getDeadlineDate(props.item);
-  if (!deadline || deadline <= new Date()) return null;
-  return `Prazo em ${formatTimeUntil(deadline)}`;
+  if (!deadline || deadline <= now.value) return null;
+  return `Prazo em ${formatTimeUntil(deadline, now.value)}`;
+});
+
+const isApproaching = computed(() => {
+  if (!isActivityPending(props.item.status) || props.reminderOffsets.length === 0) return false;
+  return isApproachingDeadline(props.item, props.reminderOffsets, now.value);
 });
 </script>

@@ -1,12 +1,14 @@
 import {
+  ALARM_WAKEUP_MINUTES,
   CHECK_ALARM,
-  CHECK_INTERVAL_MINUTES,
+  CHECK_INTERVAL_MS,
   DEFAULT_PREFERENCES,
 } from "./config.js";
 import {
   formatOffsetLabel,
   formatTimeUntil,
   getDeadlineDate,
+  isActivityPending,
   normalizePreferences,
   reminderSlotKey,
   shouldFireReminder,
@@ -16,15 +18,31 @@ import {
   fetchNotificationPreferences,
 } from "./lib/supabase.js";
 
-chrome.runtime.onInstalled.addListener(() => {
-  chrome.alarms.create(CHECK_ALARM, { periodInMinutes: CHECK_INTERVAL_MINUTES });
-});
+let checkTimer = null;
 
-chrome.alarms.onAlarm.addListener((alarm) => {
-  if (alarm.name === CHECK_ALARM) void checkDeadlines();
+function startChecking() {
+  if (checkTimer) return;
+  void checkDeadlines();
+  checkTimer = setInterval(() => void checkDeadlines(), CHECK_INTERVAL_MS);
+}
+
+function setupAlarms() {
+  chrome.alarms.create(CHECK_ALARM, { periodInMinutes: ALARM_WAKEUP_MINUTES });
+}
+
+chrome.runtime.onInstalled.addListener(() => {
+  setupAlarms();
+  startChecking();
 });
 
 chrome.runtime.onStartup.addListener(() => {
+  setupAlarms();
+  startChecking();
+});
+
+chrome.alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name !== CHECK_ALARM) return;
+  startChecking();
   void checkDeadlines();
 });
 
@@ -56,7 +74,7 @@ async function checkDeadlines() {
   const nextNotified = { ...notified };
 
   for (const activity of activities) {
-    if (activity.status === "pronto") continue;
+    if (!isActivityPending(activity.status)) continue;
 
     const deadline = getDeadlineDate(activity);
     if (!deadline || deadline <= now) continue;

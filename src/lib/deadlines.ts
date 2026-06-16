@@ -84,7 +84,7 @@ export function shouldFireReminder(
   deadline: Date,
   offset: ReminderOffset,
   now = new Date(),
-  windowMs = 5 * 60 * 1000,
+  windowMs = 30 * 1000,
 ): boolean {
   const fireAt = getReminderFireTime(deadline, offset);
   return now >= fireAt && now.getTime() - fireAt.getTime() <= windowMs && deadline > now;

@@ -1,5 +1,11 @@
+import { REMINDER_WINDOW_MS } from "../config.js";
+
 const DEFAULT_END_HOUR = 23;
 const DEFAULT_END_MINUTE = 59;
+
+export function isActivityPending(status) {
+  return status !== "pronto";
+}
 
 export function getDeadlineDate(atividade) {
   if (!atividade.data_front) return null;
@@ -26,7 +32,7 @@ export function getReminderFireTime(deadline, offset) {
   return new Date(deadline.getTime() - offsetToMs(offset));
 }
 
-export function shouldFireReminder(deadline, offset, now = new Date(), windowMs = 5 * 60_000) {
+export function shouldFireReminder(deadline, offset, now = new Date(), windowMs = REMINDER_WINDOW_MS) {
   const fireAt = getReminderFireTime(deadline, offset);
   return now >= fireAt && now.getTime() - fireAt.getTime() <= windowMs && deadline > now;
 }
