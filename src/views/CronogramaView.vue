@@ -73,6 +73,7 @@
           :reminder-offsets="reminderOffsets"
           @edit="openEdit"
           @delete="handleDelete"
+          @status-change="handleStatusChange"
         />
         <CalendarTimeline v-else-if="viewMode === 'calendario'" :items="filtered" />
         <ActivityListTable
@@ -85,8 +86,8 @@
       </div>
 
       <p class="text-xs text-slate-500">
-        Status "Pronto" indica PR aberta e funcionando em dev. Dados e prazos atualizam
-        automaticamente a cada 30 segundos.
+        Status "Pronto" indica PR aberta e funcionando em dev. Arraste os cards entre colunas para
+        mudar o status. Dados e prazos atualizam automaticamente a cada 30 segundos.
       </p>
     </main>
 
@@ -108,6 +109,7 @@ import { getNotificationPreferences } from "@/lib/notifications";
 import { provideCronogramaNow } from "@/composables/useCronogramaNow";
 import { SYNC_INTERVAL_MS } from "@/lib/syncInterval";
 import {
+  type ActivityStatus,
   type CronogramaAtividade,
   type CronogramaFormData,
   type ViewMode,
@@ -260,6 +262,24 @@ async function handleFormSubmit(data: CronogramaFormData) {
   }
 
   await loadAtividades();
+}
+
+async function handleStatusChange(item: CronogramaAtividade, status: ActivityStatus) {
+  if (item.status === status) return;
+
+  const previousStatus = item.status;
+  const local = atividades.value.find((a) => a.id === item.id);
+  if (local) local.status = status;
+
+  const { error: updateError } = await supabase
+    .from("cronograma_atividades")
+    .update({ status })
+    .eq("id", item.id);
+
+  if (updateError) {
+    if (local) local.status = previousStatus;
+    error.value = updateError.message;
+  }
 }
 
 async function handleDelete(item: CronogramaAtividade) {
