@@ -46,6 +46,20 @@
         </div>
       </section>
 
+      <section class="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h2 class="text-lg font-semibold text-slate-900">Relatório semanal</h2>
+        <p class="mt-1 text-sm text-slate-600">
+          Gere o resumo para o gestor toda sexta-feira às 10h e acompanhe seu histórico de
+          entregas.
+        </p>
+        <RouterLink
+          to="/relatorio"
+          class="mt-4 inline-block rounded-lg bg-emerald-700 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-800"
+        >
+          Abrir relatório
+        </RouterLink>
+      </section>
+
       <NotificationPreferencesPanel />
 
       <ExtensionInstallPanel />

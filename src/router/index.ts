@@ -27,6 +27,12 @@ const router = createRouter({
       meta: { requiresAuth: true },
     },
     {
+      path: "/relatorio",
+      name: "relatorio",
+      component: () => import("@/views/RelatorioView.vue"),
+      meta: { requiresAuth: true },
+    },
+    {
       path: "/",
       name: "home",
       component: () => import("@/views/CronogramaView.vue"),

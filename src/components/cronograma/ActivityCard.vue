@@ -39,6 +39,9 @@
         >
           <span>Início: {{ formatDateBR(item.data_back_banco) }}</span>
           <span>Fim: {{ formatDeadlineBR(item) }}</span>
+          <span v-if="item.status === 'pronto' && item.concluido_em">
+            Concluído: {{ formatDateTimeBR(item.concluido_em) }}
+          </span>
         </div>
 
         <p
@@ -93,7 +96,7 @@
 </template>
 
 <script setup lang="ts">
-import { formatDateBR } from "@/lib/format";
+import { formatDateBR, formatDateTimeBR } from "@/lib/format";
 import {
   formatDeadlineBR,
   formatTimeUntil,

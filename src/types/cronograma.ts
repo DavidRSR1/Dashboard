@@ -14,9 +14,28 @@ export type CronogramaAtividade = {
   categoria: string;
   pr_url: string | null;
   observacoes: string | null;
+  concluido_em: string | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;
+};
+
+export type CronogramaEventoTipo = "criada" | "status_alterado" | "editada";
+
+export type CronogramaEventoDados = {
+  status_anterior?: ActivityStatus;
+  status_novo?: ActivityStatus;
+  atividade_nome?: string;
+  categoria?: string;
+};
+
+export type CronogramaEvento = {
+  id: string;
+  atividade_id: string;
+  tipo: CronogramaEventoTipo;
+  dados: CronogramaEventoDados;
+  created_by: string | null;
+  created_at: string;
 };
 
 export type CronogramaFormData = {

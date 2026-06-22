@@ -18,6 +18,12 @@
             Link do gestor
           </a>
           <RouterLink
+            to="/relatorio"
+            class="rounded-lg border border-emerald-500 px-3 py-2 text-sm hover:bg-emerald-700"
+          >
+            Relatório
+          </RouterLink>
+          <RouterLink
             to="/perfil"
             class="rounded-lg border border-emerald-500 px-3 py-2 text-sm hover:bg-emerald-700"
           >
@@ -57,7 +63,10 @@
             {{ cat }}
           </button>
         </div>
-        <ViewModeToggle v-model="viewMode" />
+        <div class="flex flex-wrap items-center gap-3">
+          <KanbanHorizonToggle v-if="viewMode === 'kanban'" v-model="kanbanHorizon" />
+          <ViewModeToggle v-model="viewMode" />
+        </div>
       </div>
 
       <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -70,10 +79,12 @@
         <KanbanBoard
           v-else-if="viewMode === 'kanban'"
           :items="filtered"
+          :horizon="kanbanHorizon"
           :reminder-offsets="reminderOffsets"
           @edit="openEdit"
           @delete="handleDelete"
           @status-change="handleStatusChange"
+          @update:horizon="kanbanHorizon = $event"
         />
         <CalendarTimeline v-else-if="viewMode === 'calendario'" :items="filtered" />
         <ActivityListTable
@@ -86,8 +97,9 @@
       </div>
 
       <p class="text-xs text-slate-500">
-        Status "Pronto" indica PR aberta e funcionando em dev. Arraste os cards entre colunas para
-        mudar o status. Dados e prazos atualizam automaticamente a cada 30 segundos.
+        Status "Pronto" indica PR aberta e funcionando em dev. No Kanban, use o filtro
+        <strong class="font-medium">Semanal</strong> para ver só o que importa agora — concluídos há
+        mais de 2 semanas ficam ocultos até você escolher "Tudo".
       </p>
     </main>
 
@@ -106,6 +118,11 @@ import { useRouter } from "vue-router";
 import { supabase } from "@/lib/supabase/client";
 import { getShareToken, visitorUrl } from "@/lib/profile";
 import { getNotificationPreferences } from "@/lib/notifications";
+import {
+  applyStatusChange,
+  insertActivityWithEvents,
+  updateActivityWithEvents,
+} from "@/lib/cronogramaEvents";
 import { provideCronogramaNow } from "@/composables/useCronogramaNow";
 import { SYNC_INTERVAL_MS } from "@/lib/syncInterval";
 import {
@@ -118,7 +135,9 @@ import type { ReminderOffset } from "@/types/notifications";
 import ActivityFormModal from "@/components/ActivityFormModal.vue";
 import ViewModeToggle from "@/components/cronograma/ViewModeToggle.vue";
 import KanbanBoard from "@/components/cronograma/KanbanBoard.vue";
+import KanbanHorizonToggle from "@/components/cronograma/KanbanHorizonToggle.vue";
 import CalendarTimeline from "@/components/cronograma/CalendarTimeline.vue";
+import { parseStoredKanbanHorizon, type KanbanHorizon } from "@/lib/kanbanFilters";
 import ActivityListTable from "@/components/cronograma/ActivityListTable.vue";
 
 const router = useRouter();
@@ -133,6 +152,9 @@ const error = ref<string | null>(null);
 const categoria = ref("Gamificação");
 const viewMode = ref<ViewMode>(
   (localStorage.getItem("cronograma-view") as ViewMode) || "kanban",
+);
+const kanbanHorizon = ref<KanbanHorizon>(
+  parseStoredKanbanHorizon(localStorage.getItem("cronograma-horizon")),
 );
 const formOpen = ref(false);
 const editing = ref<CronogramaAtividade | null>(null);
@@ -149,6 +171,7 @@ const filtered = computed(() =>
 );
 
 watch(viewMode, (mode) => localStorage.setItem("cronograma-view", mode));
+watch(kanbanHorizon, (horizon) => localStorage.setItem("cronograma-horizon", horizon));
 
 async function loadAtividades(silent = false) {
   if (!silent) {
@@ -222,41 +245,19 @@ function openEdit(item: CronogramaAtividade) {
 async function handleFormSubmit(data: CronogramaFormData) {
   formOpen.value = false;
 
-  if (editing.value) {
-    const { error: updateError } = await supabase
-      .from("cronograma_atividades")
-      .update({
-        atividade: data.atividade,
-        data_back_banco: data.data_back_banco || null,
-        data_front: data.data_front || null,
-        hora_fim: data.hora_fim || null,
-        status: data.status,
-        categoria: data.categoria,
-        pr_url: data.pr_url || null,
-        observacoes: data.observacoes || null,
-      })
-      .eq("id", editing.value.id);
+  const { data: userData } = await supabase.auth.getUser();
+  const userId = userData.user?.id ?? null;
 
+  if (editing.value) {
+    const { error: updateError } = await updateActivityWithEvents(editing.value, data, userId);
     if (updateError) {
-      error.value = updateError.message;
+      error.value = updateError;
       return;
     }
   } else {
-    const { data: userData } = await supabase.auth.getUser();
-    const { error: insertError } = await supabase.from("cronograma_atividades").insert({
-      atividade: data.atividade,
-      data_back_banco: data.data_back_banco || null,
-      data_front: data.data_front || null,
-      hora_fim: data.hora_fim || null,
-      status: data.status,
-      categoria: data.categoria,
-      pr_url: data.pr_url || null,
-      observacoes: data.observacoes || null,
-      created_by: userData.user?.id ?? null,
-    });
-
+    const { error: insertError } = await insertActivityWithEvents(data, userId);
     if (insertError) {
-      error.value = insertError.message;
+      error.value = insertError;
       return;
     }
   }
@@ -268,17 +269,26 @@ async function handleStatusChange(item: CronogramaAtividade, status: ActivitySta
   if (item.status === status) return;
 
   const previousStatus = item.status;
-  const local = atividades.value.find((a) => a.id === item.id);
-  if (local) local.status = status;
 
-  const { error: updateError } = await supabase
-    .from("cronograma_atividades")
-    .update({ status })
-    .eq("id", item.id);
+  const { data: userData } = await supabase.auth.getUser();
+  const { error: updateError } = await applyStatusChange(
+    item,
+    previousStatus,
+    status,
+    userData.user?.id ?? null,
+  );
 
   if (updateError) {
-    if (local) local.status = previousStatus;
-    error.value = updateError.message;
+    error.value = updateError;
+    return;
+  }
+
+  const local = atividades.value.find((a) => a.id === item.id);
+  if (local) {
+    local.status = status;
+    if (status === "pronto") {
+      local.concluido_em = new Date().toISOString();
+    }
   }
 }
 

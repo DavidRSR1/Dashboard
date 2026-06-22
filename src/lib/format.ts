@@ -4,6 +4,19 @@ export function formatDateBR(isoDate: string | null): string {
   return `${day}/${month}/${year}`;
 }
 
+export function formatDateTimeBR(isoDate: string | null): string {
+  if (!isoDate) return "—";
+  const date = new Date(isoDate);
+  if (Number.isNaN(date.getTime())) return "—";
+  return date.toLocaleString("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 export function toInputDate(isoDate: string | null): string {
   if (!isoDate) return "";
   return isoDate.split("T")[0];
