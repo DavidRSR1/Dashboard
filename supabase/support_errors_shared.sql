@@ -247,6 +247,12 @@ set created_by_id = agent_id
 where created_by_id is null
   and agent_id is not null;
 
+-- Glossário = referência a outro incidente já registrado
+alter table public.support_errors
+  add column if not exists related_error_id uuid references public.support_errors (id) on delete set null;
+
+create index if not exists support_errors_related_error_id_idx
+  on public.support_errors (related_error_id);
 -- ---------------------------------------------------------------------------
 -- Realtime
 -- ---------------------------------------------------------------------------

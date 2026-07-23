@@ -60,12 +60,12 @@
               <span v-if="item.requester"> · {{ item.requester }}</span>
             </p>
             <button
-              v-if="item.glossary_id"
+              v-if="item.related_error_id"
               type="button"
               class="mt-1 text-xs font-medium text-emerald-800 underline hover:no-underline"
-              @click="emit('open-glossary', item.glossary_id)"
+              @click="emit('open-related', item.related_error_id)"
             >
-              Ver no glossário{{ glossaryTitle(item.glossary_id) }}
+              Ver incidente de referência{{ relatedTitle(item.related_error_id) }}
             </button>
             <div class="mt-2 flex flex-wrap gap-1.5">
               <SupportAgentBadge
@@ -147,7 +147,6 @@ import {
   SUPPORT_ERROR_STATUS_LABELS,
   type SupportAgent,
   type SupportError,
-  type SupportGlossaryEntry,
 } from "@/types/supportErrors";
 import SupportAgentBadge from "@/components/support-errors/SupportAgentBadge.vue";
 
@@ -156,7 +155,7 @@ const props = defineProps<{
   errors: SupportError[];
   agents: SupportAgent[];
   currentAgentId?: string | null;
-  glossary?: SupportGlossaryEntry[];
+  allErrors?: SupportError[];
 }>();
 
 const emit = defineEmits<{
@@ -165,14 +164,14 @@ const emit = defineEmits<{
   edit: [error: SupportError];
   view: [error: SupportError];
   remove: [id: string];
-  "open-glossary": [id: string];
+  "open-related": [id: string];
 }>();
 
 const label = computed(() => formatDateBR(props.dateKey));
 
 const agentsMap = computed(() => new Map(props.agents.map((agent) => [agent.id, agent])));
-const glossaryMap = computed(
-  () => new Map((props.glossary ?? []).map((entry) => [entry.id, entry])),
+const relatedMap = computed(
+  () => new Map((props.allErrors ?? props.errors).map((item) => [item.id, item])),
 );
 
 function agentOf(id: string | null) {
@@ -184,9 +183,9 @@ function canManage(item: SupportError) {
   return canManageSupportError(item, props.currentAgentId);
 }
 
-function glossaryTitle(id: string | null) {
+function relatedTitle(id: string | null) {
   if (!id) return "";
-  const entry = glossaryMap.value.get(id);
+  const entry = relatedMap.value.get(id);
   return entry ? ` — ${entry.title}` : "";
 }
 </script>

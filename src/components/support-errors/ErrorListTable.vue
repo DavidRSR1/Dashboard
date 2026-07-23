@@ -41,12 +41,12 @@
                 {{ item.requester }}
               </p>
               <button
-                v-if="item.glossary_id"
+                v-if="item.related_error_id"
                 type="button"
                 class="mt-1 text-xs font-medium text-emerald-800 underline hover:no-underline"
-                @click="emit('open-glossary', item.glossary_id)"
+                @click="emit('open-related', item.related_error_id)"
               >
-                Ver no glossário
+                Ver incidente de referência
               </button>
             </td>
             <td class="px-2 py-2 text-slate-700">{{ item.module }}</td>
@@ -145,7 +145,6 @@ import {
   SUPPORT_ERROR_STATUS_LABELS,
   type SupportAgent,
   type SupportError,
-  type SupportGlossaryEntry,
 } from "@/types/supportErrors";
 import SupportAgentBadge from "@/components/support-errors/SupportAgentBadge.vue";
 
@@ -153,14 +152,13 @@ const props = defineProps<{
   errors: SupportError[];
   agents: SupportAgent[];
   currentAgentId?: string | null;
-  glossary?: SupportGlossaryEntry[];
 }>();
 
 const emit = defineEmits<{
   edit: [error: SupportError];
   view: [error: SupportError];
   remove: [id: string];
-  "open-glossary": [id: string];
+  "open-related": [id: string];
 }>();
 
 const agentsMap = computed(() => new Map(props.agents.map((agent) => [agent.id, agent])));

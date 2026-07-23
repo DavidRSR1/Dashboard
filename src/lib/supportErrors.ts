@@ -21,6 +21,7 @@ type SupportErrorRow = {
   resolved_by_id: string | null;
   transferred_by_id: string | null;
   created_by_id: string | null;
+  related_error_id: string | null;
   glossary_id: string | null;
   created_at: string;
   updated_at: string;
@@ -44,6 +45,7 @@ function normalizeError(raw: Partial<SupportErrorRow> & { id: string }): Support
     resolved_by_id: raw.resolved_by_id ?? null,
     transferred_by_id: raw.transferred_by_id ?? null,
     created_by_id: raw.created_by_id ?? raw.agent_id ?? null,
+    related_error_id: raw.related_error_id ?? null,
     glossary_id: raw.glossary_id ?? null,
     created_at: raw.created_at ?? new Date().toISOString(),
     updated_at: raw.updated_at ?? new Date().toISOString(),
@@ -85,6 +87,7 @@ function payloadFromForm(form: SupportErrorFormData) {
     status: form.status,
     severity: form.severity,
     requester: form.requester.trim() || null,
+    related_error_id: form.related_error_id.trim() || null,
     glossary_id: form.glossary_id.trim() || null,
     ...resolveAgentFields(form),
     updated_at: new Date().toISOString(),
@@ -131,9 +134,16 @@ export async function createSupportError(
     .single();
 
   if (error) {
-    // Coluna ainda não migrada: grava sem created_by_id
-    if (/created_by_id/i.test(error.message) && /schema cache|does not exist|Could not find/i.test(error.message)) {
-      const { created_by_id: _ignored, ...legacyPayload } = payload;
+    // Coluna ainda não migrada: grava sem created_by_id / related_error_id
+    if (
+      (/created_by_id|related_error_id/i.test(error.message) &&
+        /schema cache|does not exist|Could not find/i.test(error.message))
+    ) {
+      const {
+        created_by_id: _c,
+        related_error_id: _r,
+        ...legacyPayload
+      } = payload as Record<string, unknown>;
       const retry = await supabase
         .from("support_errors")
         .insert(legacyPayload)
@@ -402,6 +412,23 @@ export function formFromSupportError(error: SupportError): SupportErrorFormData 
     agent_id: error.agent_id ?? "",
     resolved_by_id: error.resolved_by_id ?? "",
     transferred_by_id: error.transferred_by_id ?? "",
+    related_error_id: error.related_error_id ?? "",
     glossary_id: error.glossary_id ?? "",
+  };
+}
+
+export function incidentDefaultsFromError(source: SupportError): {
+  title: string;
+  description: string;
+  module: string;
+  resolution: string;
+  related_error_id: string;
+} {
+  return {
+    title: source.title,
+    description: source.description,
+    module: source.module,
+    resolution: source.resolution ?? "",
+    related_error_id: source.id,
   };
 }

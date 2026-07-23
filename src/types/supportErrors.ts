@@ -54,7 +54,9 @@ export type SupportError = {
   transferred_by_id: string | null;
   /** Agente que registrou o incidente (único que edita/exclui) */
   created_by_id: string | null;
-  /** Entrada opcional do glossário de erros conhecidos */
+  /** Incidente anterior reutilizado como referência (glossário = incidentes) */
+  related_error_id: string | null;
+  /** @deprecated Preferir related_error_id; mantido por compatibilidade */
   glossary_id: string | null;
   created_at: string;
   updated_at: string;
@@ -72,6 +74,7 @@ export type SupportErrorFormData = {
   agent_id: string;
   resolved_by_id: string;
   transferred_by_id: string;
+  related_error_id: string;
   glossary_id: string;
 };
 
@@ -245,6 +248,7 @@ export function emptySupportErrorForm(now = new Date()): SupportErrorFormData {
     agent_id: "",
     resolved_by_id: "",
     transferred_by_id: "",
+    related_error_id: "",
     glossary_id: "",
   };
 }

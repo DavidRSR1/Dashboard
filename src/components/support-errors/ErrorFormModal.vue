@@ -15,20 +15,19 @@
         <fieldset :disabled="readonly" class="space-y-4 disabled:opacity-90">
         <div>
           <label class="mb-1 block text-sm font-medium text-slate-700">
-            Erro conhecido (glossário)
-            <span class="font-normal text-slate-400">(opcional)</span>
+            Incidente conhecido (opcional)
           </label>
           <select
-            v-model="form.glossary_id"
+            v-model="form.related_error_id"
             class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 disabled:bg-slate-50"
           >
             <option value="">Sem vínculo</option>
-            <option v-for="entry in glossary" :key="entry.id" :value="entry.id">
-              {{ entry.title }}{{ entry.module ? ` — ${entry.module}` : "" }}
+            <option v-for="item in knownIncidents" :key="item.id" :value="item.id">
+              {{ item.title }}{{ item.module ? ` — ${item.module}` : "" }}
             </option>
           </select>
           <p class="mt-1 text-xs text-slate-500">
-            Ao escolher, preenche campos vazios com sintomas e solução do manual.
+            Ao escolher, preenche campos vazios com a descrição/resolução daquele incidente.
           </p>
         </div>
 
@@ -218,19 +217,18 @@ import {
   type SupportAgent,
   type SupportError,
   type SupportErrorFormData,
-  type SupportGlossaryEntry,
 } from "@/types/supportErrors";
-import { formFromSupportError } from "@/lib/supportErrors";
-import { incidentDefaultsFromGlossary } from "@/lib/supportGlossary";
+import { formFromSupportError, incidentDefaultsFromError } from "@/lib/supportErrors";
 import SupportAgentBadge from "@/components/support-errors/SupportAgentBadge.vue";
 
 const props = defineProps<{
   open: boolean;
   initial: SupportError | null;
   agents: SupportAgent[];
-  glossary?: SupportGlossaryEntry[];
+  /** Incidentes para o select de “erro conhecido” */
+  knownErrors?: SupportError[];
   defaultAgentId?: string;
-  prefillGlossaryId?: string | null;
+  prefillRelatedErrorId?: string | null;
   /** YYYY-MM-DD — preenche data/hora ao criar */
   prefillDateKey?: string | null;
   saving?: boolean;
@@ -247,17 +245,24 @@ const submitted = ref(false);
 
 const saving = computed(() => Boolean(props.saving) || submitted.value);
 const readonly = computed(() => Boolean(props.readonly));
-const glossary = computed(() => props.glossary ?? []);
+
+const knownIncidents = computed(() => {
+  const excludeId = props.initial?.id;
+  return (props.knownErrors ?? [])
+    .filter((item) => item.id !== excludeId)
+    .filter((item) => item.status === "resolvido" || Boolean(item.resolution?.trim()))
+    .slice(0, 200);
+});
 
 const selectedAgent = computed(
   () => props.agents.find((agent) => agent.id === form.agent_id) ?? null,
 );
 
-function applyGlossaryDefaults(entryId: string, onlyEmpty: boolean) {
-  const entry = glossary.value.find((item) => item.id === entryId);
-  if (!entry) return;
-  const defaults = incidentDefaultsFromGlossary(entry);
-  form.glossary_id = defaults.glossary_id;
+function applyIncidentDefaults(errorId: string, onlyEmpty: boolean) {
+  const source = (props.knownErrors ?? []).find((item) => item.id === errorId);
+  if (!source) return;
+  const defaults = incidentDefaultsFromError(source);
+  form.related_error_id = defaults.related_error_id;
   if (!onlyEmpty || !form.title.trim()) form.title = defaults.title;
   if (!onlyEmpty || !form.description.trim()) form.description = defaults.description;
   if (!onlyEmpty || !form.module.trim()) form.module = defaults.module;
@@ -279,10 +284,10 @@ watch(
       props.open,
       props.initial,
       props.defaultAgentId,
-      props.prefillGlossaryId,
+      props.prefillRelatedErrorId,
       props.prefillDateKey,
     ] as const,
-  ([open, initial, defaultAgentId, prefillGlossaryId, prefillDateKey]) => {
+  ([open, initial, defaultAgentId, prefillRelatedErrorId, prefillDateKey]) => {
     if (!open) {
       submitted.value = false;
       return;
@@ -297,19 +302,18 @@ watch(
       next.transferred_by_id = defaultAgentId;
     }
     Object.assign(form, next);
-    if (!initial && prefillGlossaryId) {
-      applyGlossaryDefaults(prefillGlossaryId, false);
+    if (!initial && prefillRelatedErrorId) {
+      applyIncidentDefaults(prefillRelatedErrorId, false);
     }
   },
   { immediate: true },
 );
 
 watch(
-  () => form.glossary_id,
-  (glossaryId, previous) => {
-    if (!props.open || !glossaryId || glossaryId === previous) return;
-    // Só preenche vazios ao trocar o vínculo (não sobrescreve edição manual)
-    applyGlossaryDefaults(glossaryId, true);
+  () => form.related_error_id,
+  (relatedId, previous) => {
+    if (!props.open || !relatedId || relatedId === previous) return;
+    applyIncidentDefaults(relatedId, true);
   },
 );
 

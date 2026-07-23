@@ -28,18 +28,10 @@
             Perfil
           </RouterLink>
           <button
-            v-if="activeTab === 'incidentes'"
             class="rounded-lg bg-white px-4 py-2 text-sm font-semibold text-emerald-800 hover:bg-emerald-50"
             @click="openCreate"
           >
             + Registrar erro
-          </button>
-          <button
-            v-else
-            class="rounded-lg bg-white px-4 py-2 text-sm font-semibold text-emerald-800 hover:bg-emerald-50"
-            @click="openGlossaryCreate"
-          >
-            + Nova entrada
           </button>
         </div>
       </div>
@@ -109,36 +101,34 @@
           :errors="selectedDayErrors"
           :agents="agents"
           :current-agent-id="currentAgent?.id ?? null"
-          :glossary="glossary"
+          :all-errors="errors"
           @clear="selectedDateKey = null"
           @add="openCreateForSelectedDay"
           @edit="openEdit"
           @view="openView"
           @remove="handleRemove"
-          @open-glossary="openGlossaryEntry"
+          @open-related="openRelatedIncident"
         />
 
         <ErrorListTable
           :errors="errors"
           :agents="agents"
           :current-agent-id="currentAgent?.id ?? null"
-          :glossary="glossary"
           @edit="openEdit"
           @view="openView"
           @remove="handleRemove"
-          @open-glossary="openGlossaryEntry"
+          @open-related="openRelatedIncident"
         />
       </template>
 
       <template v-else>
         <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
           <ErrorGlossaryPanel
-            :entries="glossary"
-            :highlight-id="highlightGlossaryId"
-            @create="openGlossaryCreate"
-            @edit="openGlossaryEdit"
-            @remove="handleGlossaryRemove"
-            @use="useGlossaryEntry"
+            :errors="errors"
+            :agents="agents"
+            :highlight-id="highlightRelatedId"
+            @use="useRelatedIncident"
+            @view="openView"
           />
         </div>
       </template>
@@ -148,22 +138,14 @@
       :open="modalOpen"
       :initial="editing"
       :agents="agents"
-      :glossary="glossary"
+      :known-errors="errors"
       :default-agent-id="currentAgent?.id ?? ''"
-      :prefill-glossary-id="prefillGlossaryId"
+      :prefill-related-error-id="prefillRelatedErrorId"
       :prefill-date-key="prefillDateKey"
       :saving="saving"
       :readonly="modalReadonly"
       @close="closeModal"
       @save="handleSave"
-    />
-
-    <GlossaryEntryFormModal
-      :open="glossaryModalOpen"
-      :initial="editingGlossary"
-      :saving="glossarySaving"
-      @close="closeGlossaryModal"
-      @save="handleGlossarySave"
     />
   </div>
 </template>
@@ -182,12 +164,6 @@ import {
   updateSupportError,
 } from "@/lib/supportErrors";
 import {
-  createSupportGlossaryEntry,
-  deleteSupportGlossaryEntry,
-  listSupportGlossary,
-  updateSupportGlossaryEntry,
-} from "@/lib/supportGlossary";
-import {
   emailLocalPart,
   ensureSupportAgentFromEmail,
   listSupportAgents,
@@ -197,15 +173,12 @@ import type {
   SupportAgent,
   SupportError,
   SupportErrorFormData,
-  SupportGlossaryEntry,
-  SupportGlossaryFormData,
 } from "@/types/supportErrors";
 import ErrorCalendar from "@/components/support-errors/ErrorCalendar.vue";
 import ErrorDayDetail from "@/components/support-errors/ErrorDayDetail.vue";
 import ErrorFormModal from "@/components/support-errors/ErrorFormModal.vue";
 import ErrorGlossaryPanel from "@/components/support-errors/ErrorGlossaryPanel.vue";
 import ErrorListTable from "@/components/support-errors/ErrorListTable.vue";
-import GlossaryEntryFormModal from "@/components/support-errors/GlossaryEntryFormModal.vue";
 
 const route = useRoute();
 const router = useRouter();
@@ -213,20 +186,16 @@ const userEmail = ref<string | null>(null);
 const currentAgent = ref<SupportAgent | null>(null);
 const errors = ref<SupportError[]>([]);
 const agents = ref<SupportAgent[]>([]);
-const glossary = ref<SupportGlossaryEntry[]>([]);
 const selectedDateKey = ref<string | null>(null);
 const modalOpen = ref(false);
 const editing = ref<SupportError | null>(null);
 const modalReadonly = ref(false);
-const prefillGlossaryId = ref<string | null>(null);
+const prefillRelatedErrorId = ref<string | null>(null);
 const prefillDateKey = ref<string | null>(null);
 const loading = ref(true);
 const loadError = ref<string | null>(null);
 const saving = ref(false);
-const glossaryModalOpen = ref(false);
-const editingGlossary = ref<SupportGlossaryEntry | null>(null);
-const glossarySaving = ref(false);
-const highlightGlossaryId = ref<string | null>(null);
+const highlightRelatedId = ref<string | null>(null);
 
 type TabId = "incidentes" | "glossario";
 const activeTab = ref<TabId>("incidentes");
@@ -257,8 +226,8 @@ function setTab(tab: TabId) {
   void router.replace({ query });
 }
 
-function openGlossaryEntry(id: string) {
-  highlightGlossaryId.value = id;
+function openRelatedIncident(id: string) {
+  highlightRelatedId.value = id;
   setTab("glossario");
 }
 
@@ -275,14 +244,13 @@ async function refresh(showLoading = false) {
     currentAgent.value = ensured.data;
   }
 
-  const [errorsRes, agentsRes, glossaryRes] = await Promise.all([
+  const [errorsRes, agentsRes] = await Promise.all([
     listSupportErrors(),
     listSupportAgents(),
-    listSupportGlossary(),
   ]);
 
-  if (errorsRes.error || agentsRes.error || glossaryRes.error) {
-    loadError.value = errorsRes.error ?? agentsRes.error ?? glossaryRes.error;
+  if (errorsRes.error || agentsRes.error) {
+    loadError.value = errorsRes.error ?? agentsRes.error;
     loading.value = false;
     return;
   }
@@ -290,7 +258,6 @@ async function refresh(showLoading = false) {
   loadError.value = null;
   errors.value = errorsRes.data;
   agents.value = agentsRes.data;
-  glossary.value = glossaryRes.data;
   if (userEmail.value) {
     const id = `agent_${emailLocalPart(userEmail.value)}`;
     currentAgent.value = agentsRes.data.find((agent) => agent.id === id) ?? currentAgent.value;
@@ -305,7 +272,7 @@ function selectDay(dateKey: string) {
 function openCreate() {
   editing.value = null;
   modalReadonly.value = false;
-  prefillGlossaryId.value = null;
+  prefillRelatedErrorId.value = null;
   prefillDateKey.value = null;
   modalOpen.value = true;
 }
@@ -313,7 +280,7 @@ function openCreate() {
 function openCreateForSelectedDay() {
   editing.value = null;
   modalReadonly.value = false;
-  prefillGlossaryId.value = null;
+  prefillRelatedErrorId.value = null;
   prefillDateKey.value = selectedDateKey.value;
   modalOpen.value = true;
 }
@@ -325,7 +292,7 @@ function openEdit(error: SupportError) {
   }
   editing.value = error;
   modalReadonly.value = false;
-  prefillGlossaryId.value = null;
+  prefillRelatedErrorId.value = null;
   prefillDateKey.value = null;
   modalOpen.value = true;
 }
@@ -333,7 +300,7 @@ function openEdit(error: SupportError) {
 function openView(error: SupportError) {
   editing.value = error;
   modalReadonly.value = true;
-  prefillGlossaryId.value = null;
+  prefillRelatedErrorId.value = null;
   prefillDateKey.value = null;
   modalOpen.value = true;
 }
@@ -343,14 +310,14 @@ function closeModal() {
   modalOpen.value = false;
   editing.value = null;
   modalReadonly.value = false;
-  prefillGlossaryId.value = null;
+  prefillRelatedErrorId.value = null;
   prefillDateKey.value = null;
 }
 
-function useGlossaryEntry(entry: SupportGlossaryEntry) {
+function useRelatedIncident(source: SupportError) {
   editing.value = null;
   modalReadonly.value = false;
-  prefillGlossaryId.value = entry.id;
+  prefillRelatedErrorId.value = source.id;
   prefillDateKey.value = selectedDateKey.value;
   setTab("incidentes");
   modalOpen.value = true;
@@ -379,7 +346,7 @@ async function handleSave(form: SupportErrorFormData) {
     modalOpen.value = false;
     editing.value = null;
     modalReadonly.value = false;
-    prefillGlossaryId.value = null;
+    prefillRelatedErrorId.value = null;
     prefillDateKey.value = null;
     await refresh();
   } finally {
@@ -408,66 +375,6 @@ async function handleRemove(id: string) {
   }
 }
 
-function openGlossaryCreate() {
-  editingGlossary.value = null;
-  glossaryModalOpen.value = true;
-}
-
-function openGlossaryEdit(entry: SupportGlossaryEntry) {
-  editingGlossary.value = entry;
-  glossaryModalOpen.value = true;
-}
-
-function closeGlossaryModal() {
-  if (glossarySaving.value) return;
-  glossaryModalOpen.value = false;
-  editingGlossary.value = null;
-}
-
-async function handleGlossarySave(form: SupportGlossaryFormData) {
-  if (glossarySaving.value) return;
-  glossarySaving.value = true;
-  try {
-    const editingId = editingGlossary.value?.id ?? null;
-    const result = editingId
-      ? await updateSupportGlossaryEntry(editingId, form)
-      : await createSupportGlossaryEntry(form);
-
-    if (result.error) {
-      alert(result.error);
-      return;
-    }
-
-    glossaryModalOpen.value = false;
-    editingGlossary.value = null;
-    if (result.data) {
-      highlightGlossaryId.value = result.data.id;
-    }
-    await refresh();
-  } finally {
-    glossarySaving.value = false;
-  }
-}
-
-async function handleGlossaryRemove(id: string) {
-  if (glossarySaving.value) return;
-  if (!confirm("Excluir esta entrada do glossário?")) return;
-  glossarySaving.value = true;
-  try {
-    const result = await deleteSupportGlossaryEntry(id);
-    if (result.error) {
-      alert(result.error);
-      return;
-    }
-    if (highlightGlossaryId.value === id) {
-      highlightGlossaryId.value = null;
-    }
-    await refresh();
-  } finally {
-    glossarySaving.value = false;
-  }
-}
-
 function subscribeRealtime() {
   channel = supabase
     .channel("support-errors-shared")
@@ -481,13 +388,6 @@ function subscribeRealtime() {
     .on(
       "postgres_changes",
       { event: "*", schema: "public", table: "support_agents" },
-      () => {
-        void refresh(false);
-      },
-    )
-    .on(
-      "postgres_changes",
-      { event: "*", schema: "public", table: "support_error_glossary" },
       () => {
         void refresh(false);
       },
@@ -516,9 +416,9 @@ onMounted(async () => {
     selectedDateKey.value = dia;
   }
 
-  const glossarioId = route.query.glossario;
-  if (typeof glossarioId === "string" && glossarioId) {
-    highlightGlossaryId.value = glossarioId;
+  const relatedId = route.query.glossario ?? route.query.relacionado;
+  if (typeof relatedId === "string" && relatedId) {
+    highlightRelatedId.value = relatedId;
     activeTab.value = "glossario";
   }
 
