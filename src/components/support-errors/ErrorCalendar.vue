@@ -92,6 +92,12 @@
             {{ markerTitle(cell.marker) }}
           </span>
         </div>
+        <p
+          v-else-if="cell.inPeriod"
+          class="mt-2 text-[10px] text-slate-400"
+        >
+          Clique para ver / adicionar
+        </p>
       </button>
     </div>
   </div>

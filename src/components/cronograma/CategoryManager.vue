@@ -8,7 +8,8 @@
         <div>
           <h2 class="text-lg font-semibold text-slate-900">Gerenciar categorias</h2>
           <p class="mt-0.5 text-xs text-slate-500">
-            Renomeie (atualiza as atividades) ou arquive para ocultar dos filtros.
+            Renomear atualiza as atividades e as tags do histórico — nada é apagado. Arquivar só
+            oculta dos filtros.
           </p>
         </div>
         <button

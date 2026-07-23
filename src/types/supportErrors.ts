@@ -52,6 +52,8 @@ export type SupportError = {
   resolved_by_id: string | null;
   /** Quem encaminhou / transferiu */
   transferred_by_id: string | null;
+  /** Agente que registrou o incidente (único que edita/exclui) */
+  created_by_id: string | null;
   /** Entrada opcional do glossário de erros conhecidos */
   glossary_id: string | null;
   created_at: string;

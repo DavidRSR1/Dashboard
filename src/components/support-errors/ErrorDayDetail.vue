@@ -9,17 +9,33 @@
           {{ errors.length }} ocorrência(s) nesta data
         </p>
       </div>
-      <button
-        type="button"
-        class="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
-        @click="emit('clear')"
-      >
-        Fechar
-      </button>
+      <div class="flex flex-wrap gap-2">
+        <button
+          type="button"
+          class="rounded-lg bg-emerald-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-800"
+          @click="emit('add')"
+        >
+          + Registrar neste dia
+        </button>
+        <button
+          type="button"
+          class="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
+          @click="emit('clear')"
+        >
+          Fechar
+        </button>
+      </div>
     </div>
 
-    <p v-if="errors.length === 0" class="mt-4 text-sm text-slate-500">
-      Nenhum erro registrado neste dia.
+    <p v-if="errors.length === 0" class="mt-4 rounded-lg border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-center text-sm text-slate-500">
+      Nenhum erro neste dia.
+      <button
+        type="button"
+        class="mt-3 block w-full text-sm font-medium text-emerald-800 hover:underline"
+        @click="emit('add')"
+      >
+        Registrar o primeiro erro desta data
+      </button>
     </p>
 
     <ul v-else class="mt-4 space-y-3">
@@ -53,7 +69,12 @@
             </button>
             <div class="mt-2 flex flex-wrap gap-1.5">
               <SupportAgentBadge
-                v-if="agentOf(item.agent_id)"
+                v-if="agentOf(item.created_by_id ?? item.agent_id)"
+                :agent="agentOf(item.created_by_id ?? item.agent_id)"
+                prefix="Registrou:"
+              />
+              <SupportAgentBadge
+                v-if="agentOf(item.agent_id) && item.agent_id !== (item.created_by_id ?? item.agent_id)"
                 :agent="agentOf(item.agent_id)"
                 prefix="Resp.:"
               />
@@ -85,19 +106,29 @@
           </div>
         </div>
         <div class="mt-3 flex gap-2">
+          <template v-if="canManage(item)">
+            <button
+              type="button"
+              class="rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
+              @click="emit('edit', item)"
+            >
+              Editar
+            </button>
+            <button
+              type="button"
+              class="rounded-lg border border-red-200 bg-white px-2.5 py-1 text-xs font-medium text-red-700 hover:bg-red-50"
+              @click="emit('remove', item.id)"
+            >
+              Excluir
+            </button>
+          </template>
           <button
+            v-else
             type="button"
             class="rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
-            @click="emit('edit', item)"
+            @click="emit('view', item)"
           >
-            Editar
-          </button>
-          <button
-            type="button"
-            class="rounded-lg border border-red-200 bg-white px-2.5 py-1 text-xs font-medium text-red-700 hover:bg-red-50"
-            @click="emit('remove', item.id)"
-          >
-            Excluir
+            Ver detalhes
           </button>
         </div>
       </li>
@@ -108,6 +139,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { formatDateBR, formatDateTimeBR } from "@/lib/format";
+import { canManageSupportError } from "@/lib/supportErrors";
 import {
   SUPPORT_ERROR_SEVERITY_COLORS,
   SUPPORT_ERROR_SEVERITY_LABELS,
@@ -123,12 +155,15 @@ const props = defineProps<{
   dateKey: string;
   errors: SupportError[];
   agents: SupportAgent[];
+  currentAgentId?: string | null;
   glossary?: SupportGlossaryEntry[];
 }>();
 
 const emit = defineEmits<{
   clear: [];
+  add: [];
   edit: [error: SupportError];
+  view: [error: SupportError];
   remove: [id: string];
   "open-glossary": [id: string];
 }>();
@@ -143,6 +178,10 @@ const glossaryMap = computed(
 function agentOf(id: string | null) {
   if (!id) return null;
   return agentsMap.value.get(id) ?? null;
+}
+
+function canManage(item: SupportError) {
+  return canManageSupportError(item, props.currentAgentId);
 }
 
 function glossaryTitle(id: string | null) {

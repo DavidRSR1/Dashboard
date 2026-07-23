@@ -234,6 +234,19 @@ alter table public.support_errors
 create index if not exists support_errors_glossary_id_idx
   on public.support_errors (glossary_id);
 
+-- Quem registrou o incidente (só essa pessoa edita/exclui)
+alter table public.support_errors
+  add column if not exists created_by_id text;
+
+create index if not exists support_errors_created_by_id_idx
+  on public.support_errors (created_by_id);
+
+-- Backfill: registros antigos ficam com o responsável atual como “quem adicionou”
+update public.support_errors
+set created_by_id = agent_id
+where created_by_id is null
+  and agent_id is not null;
+
 -- ---------------------------------------------------------------------------
 -- Realtime
 -- ---------------------------------------------------------------------------

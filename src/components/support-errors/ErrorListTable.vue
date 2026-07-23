@@ -61,7 +61,12 @@
             <td class="px-2 py-2">
               <div class="flex flex-col gap-1">
                 <SupportAgentBadge
-                  v-if="agentOf(item.agent_id)"
+                  v-if="agentOf(item.created_by_id ?? item.agent_id)"
+                  :agent="agentOf(item.created_by_id ?? item.agent_id)"
+                  prefix="Registrou:"
+                />
+                <SupportAgentBadge
+                  v-if="agentOf(item.agent_id) && item.agent_id !== (item.created_by_id ?? item.agent_id)"
                   :agent="agentOf(item.agent_id)"
                   prefix="Resp.:"
                 />
@@ -77,6 +82,7 @@
                 />
                 <span
                   v-if="
+                    !agentOf(item.created_by_id ?? item.agent_id) &&
                     !agentOf(item.agent_id) &&
                     !(item.status === 'resolvido' && agentOf(item.resolved_by_id)) &&
                     !(item.status === 'encaminhado_n2' && agentOf(item.transferred_by_id))
@@ -96,19 +102,29 @@
               </span>
             </td>
             <td class="whitespace-nowrap px-2 py-2">
+              <template v-if="canManage(item)">
+                <button
+                  type="button"
+                  class="mr-2 text-xs font-medium text-emerald-800 hover:underline"
+                  @click="emit('edit', item)"
+                >
+                  Editar
+                </button>
+                <button
+                  type="button"
+                  class="text-xs font-medium text-red-700 hover:underline"
+                  @click="emit('remove', item.id)"
+                >
+                  Excluir
+                </button>
+              </template>
               <button
+                v-else
                 type="button"
-                class="mr-2 text-xs font-medium text-emerald-800 hover:underline"
-                @click="emit('edit', item)"
+                class="text-xs font-medium text-slate-600 hover:underline"
+                @click="emit('view', item)"
               >
-                Editar
-              </button>
-              <button
-                type="button"
-                class="text-xs font-medium text-red-700 hover:underline"
-                @click="emit('remove', item.id)"
-              >
-                Excluir
+                Ver
               </button>
             </td>
           </tr>
@@ -121,6 +137,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { formatDateTimeBR } from "@/lib/format";
+import { canManageSupportError } from "@/lib/supportErrors";
 import {
   SUPPORT_ERROR_SEVERITY_COLORS,
   SUPPORT_ERROR_SEVERITY_LABELS,
@@ -135,11 +152,13 @@ import SupportAgentBadge from "@/components/support-errors/SupportAgentBadge.vue
 const props = defineProps<{
   errors: SupportError[];
   agents: SupportAgent[];
+  currentAgentId?: string | null;
   glossary?: SupportGlossaryEntry[];
 }>();
 
 const emit = defineEmits<{
   edit: [error: SupportError];
+  view: [error: SupportError];
   remove: [id: string];
   "open-glossary": [id: string];
 }>();
@@ -149,5 +168,9 @@ const agentsMap = computed(() => new Map(props.agents.map((agent) => [agent.id, 
 function agentOf(id: string | null) {
   if (!id) return null;
   return agentsMap.value.get(id) ?? null;
+}
+
+function canManage(item: SupportError) {
+  return canManageSupportError(item, props.currentAgentId);
 }
 </script>

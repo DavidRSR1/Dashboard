@@ -96,3 +96,99 @@ exception when duplicate_object then null;
 end $$;
 
 grant select, insert, update, delete on public.cronograma_categorias to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- Renomear categoria sem perder atividades nem tags do histórico
+-- ---------------------------------------------------------------------------
+create or replace function public.rename_cronograma_categoria(
+  p_id uuid,
+  p_old_name text,
+  p_new_name text
+)
+returns void
+language plpgsql
+security invoker
+set search_path = public
+as $$
+declare
+  v_uid uuid := auth.uid();
+  v_old text := trim(p_old_name);
+  v_new text := trim(p_new_name);
+begin
+  if v_uid is null then
+    raise exception 'Faça login para renomear categorias.';
+  end if;
+
+  if v_new is null or v_new = '' then
+    raise exception 'Informe o novo nome.';
+  end if;
+
+  if v_new = v_old then
+    return;
+  end if;
+
+  if not exists (
+    select 1
+    from public.cronograma_categorias c
+    where c.id = p_id
+      and c.user_id = v_uid
+  ) then
+    raise exception 'Categoria não encontrada.';
+  end if;
+
+  if exists (
+    select 1
+    from public.cronograma_categorias c
+    where c.user_id = v_uid
+      and c.name = v_new
+      and c.id <> p_id
+  ) then
+    raise exception 'Já existe uma categoria com esse nome.';
+  end if;
+
+  -- 1) catálogo
+  update public.cronograma_categorias
+  set name = v_new,
+      updated_at = now()
+  where id = p_id
+    and user_id = v_uid;
+
+  -- 2) atividades (do usuário + órfãs sem dono, para não “sumir” nada do board)
+  update public.cronograma_atividades
+  set categoria = v_new,
+      updated_at = now()
+  where trim(categoria) = v_old
+    and (
+      created_by::text = v_uid::text
+      or created_by is null
+    );
+
+  -- 3) tags de categoria nos eventos (histórico)
+  update public.cronograma_eventos e
+  set dados = jsonb_set(
+    coalesce(e.dados, '{}'::jsonb),
+    '{categoria}',
+    to_jsonb(v_new),
+    true
+  )
+  where e.dados->>'categoria' = v_old
+    and (
+      e.created_by::text = v_uid::text
+      or e.created_by is null
+      or exists (
+        select 1
+        from public.cronograma_atividades a
+        where a.id = e.atividade_id
+          and (
+            a.created_by::text = v_uid::text
+            or a.created_by is null
+          )
+      )
+    );
+end;
+$$;
+
+grant execute on function public.rename_cronograma_categoria(uuid, text, text) to authenticated;
+
+-- Atualiza o cache do PostgREST (evita erro "schema cache" / user_id)
+notify pgrst, 'reload schema';

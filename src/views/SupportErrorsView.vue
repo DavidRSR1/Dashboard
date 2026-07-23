@@ -108,9 +108,12 @@
           :date-key="selectedDateKey"
           :errors="selectedDayErrors"
           :agents="agents"
+          :current-agent-id="currentAgent?.id ?? null"
           :glossary="glossary"
           @clear="selectedDateKey = null"
+          @add="openCreateForSelectedDay"
           @edit="openEdit"
+          @view="openView"
           @remove="handleRemove"
           @open-glossary="openGlossaryEntry"
         />
@@ -118,8 +121,10 @@
         <ErrorListTable
           :errors="errors"
           :agents="agents"
+          :current-agent-id="currentAgent?.id ?? null"
           :glossary="glossary"
           @edit="openEdit"
+          @view="openView"
           @remove="handleRemove"
           @open-glossary="openGlossaryEntry"
         />
@@ -146,7 +151,9 @@
       :glossary="glossary"
       :default-agent-id="currentAgent?.id ?? ''"
       :prefill-glossary-id="prefillGlossaryId"
+      :prefill-date-key="prefillDateKey"
       :saving="saving"
+      :readonly="modalReadonly"
       @close="closeModal"
       @save="handleSave"
     />
@@ -167,6 +174,7 @@ import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { supabase } from "@/lib/supabase/client";
 import {
+  canManageSupportError,
   createSupportError,
   deleteSupportError,
   errorsForDateKey,
@@ -209,7 +217,9 @@ const glossary = ref<SupportGlossaryEntry[]>([]);
 const selectedDateKey = ref<string | null>(null);
 const modalOpen = ref(false);
 const editing = ref<SupportError | null>(null);
+const modalReadonly = ref(false);
 const prefillGlossaryId = ref<string | null>(null);
+const prefillDateKey = ref<string | null>(null);
 const loading = ref(true);
 const loadError = ref<string | null>(null);
 const saving = ref(false);
@@ -294,13 +304,37 @@ function selectDay(dateKey: string) {
 
 function openCreate() {
   editing.value = null;
+  modalReadonly.value = false;
   prefillGlossaryId.value = null;
+  prefillDateKey.value = null;
+  modalOpen.value = true;
+}
+
+function openCreateForSelectedDay() {
+  editing.value = null;
+  modalReadonly.value = false;
+  prefillGlossaryId.value = null;
+  prefillDateKey.value = selectedDateKey.value;
   modalOpen.value = true;
 }
 
 function openEdit(error: SupportError) {
+  if (!canManageSupportError(error, currentAgent.value?.id)) {
+    openView(error);
+    return;
+  }
   editing.value = error;
+  modalReadonly.value = false;
   prefillGlossaryId.value = null;
+  prefillDateKey.value = null;
+  modalOpen.value = true;
+}
+
+function openView(error: SupportError) {
+  editing.value = error;
+  modalReadonly.value = true;
+  prefillGlossaryId.value = null;
+  prefillDateKey.value = null;
   modalOpen.value = true;
 }
 
@@ -308,25 +342,34 @@ function closeModal() {
   if (saving.value) return;
   modalOpen.value = false;
   editing.value = null;
+  modalReadonly.value = false;
   prefillGlossaryId.value = null;
+  prefillDateKey.value = null;
 }
 
 function useGlossaryEntry(entry: SupportGlossaryEntry) {
   editing.value = null;
+  modalReadonly.value = false;
   prefillGlossaryId.value = entry.id;
+  prefillDateKey.value = selectedDateKey.value;
   setTab("incidentes");
   modalOpen.value = true;
 }
 
 async function handleSave(form: SupportErrorFormData) {
-  if (saving.value) return;
+  if (saving.value || modalReadonly.value) return;
   saving.value = true;
 
   try {
     const editingId = editing.value?.id ?? null;
+    if (editingId && editing.value && !canManageSupportError(editing.value, currentAgent.value?.id)) {
+      alert("Somente quem registrou este erro pode editá-lo.");
+      return;
+    }
+
     const result = editingId
       ? await updateSupportError(editingId, form)
-      : await createSupportError(form);
+      : await createSupportError(form, { createdById: currentAgent.value?.id ?? null });
 
     if (result.error) {
       alert(result.error);
@@ -335,7 +378,9 @@ async function handleSave(form: SupportErrorFormData) {
 
     modalOpen.value = false;
     editing.value = null;
+    modalReadonly.value = false;
     prefillGlossaryId.value = null;
+    prefillDateKey.value = null;
     await refresh();
   } finally {
     saving.value = false;
@@ -344,6 +389,11 @@ async function handleSave(form: SupportErrorFormData) {
 
 async function handleRemove(id: string) {
   if (saving.value) return;
+  const target = errors.value.find((item) => item.id === id);
+  if (target && !canManageSupportError(target, currentAgent.value?.id)) {
+    alert("Somente quem registrou este erro pode excluí-lo.");
+    return;
+  }
   if (!confirm("Excluir este registro de erro?")) return;
   saving.value = true;
   try {

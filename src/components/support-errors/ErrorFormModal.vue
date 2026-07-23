@@ -5,10 +5,14 @@
   >
     <div class="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-xl bg-white p-6 shadow-2xl">
       <h2 class="text-lg font-semibold text-slate-900">
-        {{ initial ? "Editar erro" : "Registrar erro" }}
+        {{ readonly ? "Detalhes do erro" : initial ? "Editar erro" : "Registrar erro" }}
       </h2>
+      <p v-if="readonly" class="mt-1 text-xs text-slate-500">
+        Somente quem registrou pode editar ou excluir. Você está em modo visualização.
+      </p>
 
       <form class="mt-4 space-y-4" @submit.prevent="handleSubmit">
+        <fieldset :disabled="readonly" class="space-y-4 disabled:opacity-90">
         <div>
           <label class="mb-1 block text-sm font-medium text-slate-700">
             Erro conhecido (glossário)
@@ -16,7 +20,7 @@
           </label>
           <select
             v-model="form.glossary_id"
-            class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900"
+            class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 disabled:bg-slate-50"
           >
             <option value="">Sem vínculo</option>
             <option v-for="entry in glossary" :key="entry.id" :value="entry.id">
@@ -180,6 +184,7 @@
         <p v-if="agents.length === 0" class="text-xs text-amber-700">
           Faça login com a conta do perfil — o usuário (antes do @) entra automaticamente no time.
         </p>
+        </fieldset>
 
         <div class="flex gap-3 pt-2">
           <button
@@ -188,9 +193,10 @@
             :disabled="saving"
             @click="emit('close')"
           >
-            Cancelar
+            {{ readonly ? "Fechar" : "Cancelar" }}
           </button>
           <button
+            v-if="!readonly"
             type="submit"
             class="flex-1 rounded-lg bg-emerald-700 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-800 disabled:opacity-60"
             :disabled="saving"
@@ -225,7 +231,10 @@ const props = defineProps<{
   glossary?: SupportGlossaryEntry[];
   defaultAgentId?: string;
   prefillGlossaryId?: string | null;
+  /** YYYY-MM-DD — preenche data/hora ao criar */
+  prefillDateKey?: string | null;
   saving?: boolean;
+  readonly?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -237,6 +246,7 @@ const form = reactive<SupportErrorFormData>(emptySupportErrorForm());
 const submitted = ref(false);
 
 const saving = computed(() => Boolean(props.saving) || submitted.value);
+const readonly = computed(() => Boolean(props.readonly));
 const glossary = computed(() => props.glossary ?? []);
 
 const selectedAgent = computed(
@@ -254,16 +264,33 @@ function applyGlossaryDefaults(entryId: string, onlyEmpty: boolean) {
   if (!onlyEmpty || !form.resolution.trim()) form.resolution = defaults.resolution;
 }
 
+function dateFromPrefill(dateKey: string | null | undefined): Date {
+  if (!dateKey || !/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) {
+    return new Date();
+  }
+  const now = new Date();
+  const [y, m, d] = dateKey.split("-").map(Number);
+  return new Date(y, m - 1, d, now.getHours(), now.getMinutes(), 0, 0);
+}
+
 watch(
   () =>
-    [props.open, props.initial, props.defaultAgentId, props.prefillGlossaryId] as const,
-  ([open, initial, defaultAgentId, prefillGlossaryId]) => {
+    [
+      props.open,
+      props.initial,
+      props.defaultAgentId,
+      props.prefillGlossaryId,
+      props.prefillDateKey,
+    ] as const,
+  ([open, initial, defaultAgentId, prefillGlossaryId, prefillDateKey]) => {
     if (!open) {
       submitted.value = false;
       return;
     }
     submitted.value = false;
-    const next = initial ? formFromSupportError(initial) : emptySupportErrorForm();
+    const next = initial
+      ? formFromSupportError(initial)
+      : emptySupportErrorForm(dateFromPrefill(prefillDateKey));
     if (!initial && defaultAgentId) {
       next.agent_id = defaultAgentId;
       next.resolved_by_id = defaultAgentId;
@@ -319,7 +346,7 @@ watch(
 );
 
 function handleSubmit() {
-  if (saving.value) return;
+  if (readonly.value || saving.value) return;
   if (form.status === "resolvido" && !form.resolved_by_id) return;
   if (form.status === "resolvido" && !form.resolution.trim()) return;
   if (form.status === "encaminhado_n2" && !form.transferred_by_id) return;

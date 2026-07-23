@@ -20,6 +20,7 @@ type SupportErrorRow = {
   agent_id: string | null;
   resolved_by_id: string | null;
   transferred_by_id: string | null;
+  created_by_id: string | null;
   glossary_id: string | null;
   created_at: string;
   updated_at: string;
@@ -42,6 +43,7 @@ function normalizeError(raw: Partial<SupportErrorRow> & { id: string }): Support
     agent_id: raw.agent_id ?? null,
     resolved_by_id: raw.resolved_by_id ?? null,
     transferred_by_id: raw.transferred_by_id ?? null,
+    created_by_id: raw.created_by_id ?? raw.agent_id ?? null,
     glossary_id: raw.glossary_id ?? null,
     created_at: raw.created_at ?? new Date().toISOString(),
     updated_at: raw.updated_at ?? new Date().toISOString(),
@@ -111,9 +113,14 @@ export async function listSupportErrors(): Promise<{
 
 export async function createSupportError(
   form: SupportErrorFormData,
+  options?: { createdById?: string | null },
 ): Promise<{ data: SupportError | null; error: string | null }> {
+  const createdById =
+    options?.createdById?.trim() || form.agent_id.trim() || null;
+
   const payload = {
     ...payloadFromForm(form),
+    created_by_id: createdById,
     created_at: new Date().toISOString(),
   };
 
@@ -124,6 +131,19 @@ export async function createSupportError(
     .single();
 
   if (error) {
+    // Coluna ainda não migrada: grava sem created_by_id
+    if (/created_by_id/i.test(error.message) && /schema cache|does not exist|Could not find/i.test(error.message)) {
+      const { created_by_id: _ignored, ...legacyPayload } = payload;
+      const retry = await supabase
+        .from("support_errors")
+        .insert(legacyPayload)
+        .select("*")
+        .single();
+      if (retry.error) {
+        return { data: null, error: retry.error.message };
+      }
+      return { data: normalizeError(retry.data as SupportErrorRow), error: null };
+    }
     return { data: null, error: error.message };
   }
 
@@ -134,6 +154,7 @@ export async function updateSupportError(
   id: string,
   form: SupportErrorFormData,
 ): Promise<{ data: SupportError | null; error: string | null }> {
+  // created_by_id nunca é alterado no update
   const { data, error } = await supabase
     .from("support_errors")
     .update(payloadFromForm(form))
@@ -154,6 +175,20 @@ export async function deleteSupportError(
   const { error } = await supabase.from("support_errors").delete().eq("id", id);
   if (error) return { ok: false, error: error.message };
   return { ok: true, error: null };
+}
+
+/** Dono do registro = quem adicionou (fallback: responsável atual em registros antigos). */
+export function supportErrorOwnerId(error: SupportError): string | null {
+  return error.created_by_id ?? error.agent_id;
+}
+
+export function canManageSupportError(
+  error: SupportError,
+  currentAgentId: string | null | undefined,
+): boolean {
+  if (!currentAgentId) return false;
+  const owner = supportErrorOwnerId(error);
+  return Boolean(owner && owner === currentAgentId);
 }
 
 export function dateKeyFromIso(iso: string): string {
