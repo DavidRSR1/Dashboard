@@ -47,6 +47,8 @@
       </div>
     </div>
 
+    <CronogramaWeeklyListPanel :report-data="reportData" />
+
     <div>
       <label class="mb-1 block text-sm font-medium text-slate-700">
         Observações (opcional — incluídas ao copiar)
@@ -73,6 +75,7 @@ import { computed, ref } from "vue";
 import { buildWeeklyReportData, buildWeeklyReportText } from "@/lib/weeklyReport";
 import { getReportWeekRange } from "@/lib/weekRange";
 import type { CronogramaAtividade, CronogramaEvento } from "@/types/cronograma";
+import CronogramaWeeklyListPanel from "@/components/relatorio/CronogramaWeeklyListPanel.vue";
 
 const props = defineProps<{
   atividades: CronogramaAtividade[];

@@ -37,6 +37,9 @@
         <WeeklyErrorsSummary :summary="weeklySummary" />
         <MonthlyErrorsSummary :summary="monthlySummary" @select-day="onSelectDay" />
       </div>
+
+      <SupportWeeklyListPanel :errors="filteredErrors" />
+
       <p class="text-xs text-slate-500">
         Resumos do módulo de erros N1.
         <template v-if="isMaster"> Como master, você vê todos e pode filtrar. </template>
@@ -68,6 +71,7 @@ import {
 import type { SupportAgent, SupportError } from "@/types/supportErrors";
 import MonthlyErrorsSummary from "@/components/support-errors/MonthlyErrorsSummary.vue";
 import WeeklyErrorsSummary from "@/components/support-errors/WeeklyErrorsSummary.vue";
+import SupportWeeklyListPanel from "@/components/relatorio/SupportWeeklyListPanel.vue";
 
 const router = useRouter();
 const errors = ref<SupportError[]>([]);

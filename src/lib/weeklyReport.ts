@@ -127,12 +127,63 @@ export function buildWeeklyReportData(
   };
 }
 
+export type WeeklyReportSections = {
+  foco: CronogramaAtividade[];
+  entregas: CronogramaAtividade[];
+  impedimentos: CronogramaAtividade[];
+  proximos: CronogramaAtividade[];
+};
+
+export function buildCronogramaWeekSections(data: WeeklyReportData): WeeklyReportSections {
+  const now = new Date();
+
+  const impedimentos = data.activeFocus.filter((item) => {
+    const deadline = getDeadlineDate(item);
+    return Boolean(deadline && deadline < now && item.status !== "pronto");
+  });
+  const impedimentoIds = new Set(impedimentos.map((item) => item.id));
+
+  const foco = data.activeFocus.filter(
+    (item) =>
+      !impedimentoIds.has(item.id) &&
+      (item.status === "iniciado" || item.status === "em_progresso"),
+  );
+  const focoIds = new Set(foco.map((item) => item.id));
+
+  const proximosFromFocus = data.activeFocus.filter(
+    (item) =>
+      !impedimentoIds.has(item.id) &&
+      !focoIds.has(item.id) &&
+      item.status === "nao_iniciado",
+  );
+
+  const proximosExtras = data.nextWeekDeadlines.filter(
+    (item) =>
+      !impedimentoIds.has(item.id) &&
+      !focoIds.has(item.id) &&
+      !proximosFromFocus.some((p) => p.id === item.id),
+  );
+
+  return {
+    foco,
+    entregas: data.deliveries.map((item) => item.atividade),
+    impedimentos,
+    proximos: [...proximosFromFocus, ...proximosExtras],
+  };
+}
+
+function formatAtividadeLine(item: CronogramaAtividade): string {
+  const prazo = item.data_front ? `prazo ${formatDateBR(item.data_front)}` : "sem prazo definido";
+  return `• ${item.atividade} (${item.categoria}) — ${STATUS_LABELS[item.status]}, ${prazo}.`;
+}
+
 export function buildWeeklyReportText(
   data: WeeklyReportData,
   userEmail: string,
   observacoes = "",
 ): string {
-  const { week, deliveries, created, activeFocus, nextWeekDeadlines, stats } = data;
+  const { week, deliveries, created, stats } = data;
+  const sections = buildCronogramaWeekSections(data);
   const lines: string[] = [];
 
   const periodo = week.label.replace(" (sex. 10h)", "");
@@ -163,9 +214,22 @@ export function buildWeeklyReportText(
     lines.push(`Cadastrei ${qtd} no cronograma.`);
   }
 
-  if (deliveries.length > 0) {
-    lines.push("");
-    lines.push("Entregas:");
+  lines.push("");
+  lines.push("Foco Principal da Semana (Estratégico)");
+  if (sections.foco.length === 0) {
+    lines.push("*");
+  } else {
+    for (const item of sections.foco) {
+      lines.push(formatAtividadeLine(item));
+      if (item.observacoes?.trim()) lines.push(`  ${item.observacoes.trim()}`);
+    }
+  }
+
+  lines.push("");
+  lines.push("Entregas Realizadas (Operacional)");
+  if (sections.entregas.length === 0) {
+    lines.push("*");
+  } else {
     for (const { atividade, concluidoEm, onTime } of deliveries) {
       const timing = formatDeliveryTiming(concluidoEm, atividade);
       const nota = formatOnTimeNote(onTime);
@@ -174,31 +238,24 @@ export function buildWeeklyReportText(
     }
   }
 
-  if (activeFocus.length > 0) {
-    lines.push("");
-    lines.push("Em andamento nesta semana:");
-    for (const item of activeFocus) {
-      const prazo = item.data_front ? `prazo ${formatDateBR(item.data_front)}` : "sem prazo definido";
-      lines.push(
-        `• ${item.atividade} (${item.categoria}) — ${STATUS_LABELS[item.status]}, ${prazo}.`,
-      );
-      if (item.observacoes?.trim()) {
-        lines.push(`  ${item.observacoes.trim()}`);
-      }
+  lines.push("");
+  lines.push("Impedimentos (Críticos)");
+  if (sections.impedimentos.length === 0) {
+    lines.push("*");
+  } else {
+    for (const item of sections.impedimentos) {
+      lines.push(formatAtividadeLine(item));
+      if (item.observacoes?.trim()) lines.push(`  ${item.observacoes.trim()}`);
     }
   }
 
-  const proximaSemanaExtras = nextWeekDeadlines.filter(
-    (item) => !activeFocus.some((a) => a.id === item.id),
-  );
-
-  if (proximaSemanaExtras.length > 0) {
-    lines.push("");
-    lines.push("Prazos na próxima semana:");
-    for (const item of proximaSemanaExtras) {
-      lines.push(
-        `• ${item.atividade} (${item.categoria}) — ${formatDateBR(item.data_front)}, ${STATUS_LABELS[item.status]}.`,
-      );
+  lines.push("");
+  lines.push("Próximos Passos (Planejamento)");
+  if (sections.proximos.length === 0) {
+    lines.push("*");
+  } else {
+    for (const item of sections.proximos) {
+      lines.push(formatAtividadeLine(item));
     }
   }
 
