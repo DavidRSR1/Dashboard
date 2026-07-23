@@ -1,0 +1,98 @@
+<template>
+  <section class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+    <div class="flex flex-wrap items-start justify-between gap-3">
+      <div>
+        <h3 class="text-sm font-semibold text-slate-900">
+          Erros em {{ label }}
+        </h3>
+        <p class="mt-0.5 text-xs text-slate-500">
+          {{ errors.length }} ocorrência(s) nesta data
+        </p>
+      </div>
+      <button
+        type="button"
+        class="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
+        @click="emit('clear')"
+      >
+        Fechar
+      </button>
+    </div>
+
+    <p v-if="errors.length === 0" class="mt-4 text-sm text-slate-500">
+      Nenhum erro registrado neste dia.
+    </p>
+
+    <ul v-else class="mt-4 space-y-3">
+      <li
+        v-for="item in errors"
+        :key="item.id"
+        class="rounded-lg border border-slate-200 bg-slate-50 p-3"
+      >
+        <div class="flex flex-wrap items-start justify-between gap-2">
+          <div class="min-w-0 flex-1">
+            <p class="text-sm font-medium text-slate-900">{{ item.description }}</p>
+            <p class="mt-1 text-xs text-slate-500">
+              {{ formatDateTimeBR(item.occurred_at) }} · {{ item.module }}
+              <span v-if="item.requester"> · {{ item.requester }}</span>
+            </p>
+          </div>
+          <div class="flex flex-wrap gap-1">
+            <span
+              class="rounded-full border px-2 py-0.5 text-[10px] font-medium"
+              :class="SUPPORT_ERROR_STATUS_COLORS[item.status]"
+            >
+              {{ SUPPORT_ERROR_STATUS_LABELS[item.status] }}
+            </span>
+            <span
+              class="rounded-full border px-2 py-0.5 text-[10px] font-medium"
+              :class="SUPPORT_ERROR_SEVERITY_COLORS[item.severity]"
+            >
+              {{ SUPPORT_ERROR_SEVERITY_LABELS[item.severity] }}
+            </span>
+          </div>
+        </div>
+        <div class="mt-3 flex gap-2">
+          <button
+            type="button"
+            class="rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
+            @click="emit('edit', item)"
+          >
+            Editar
+          </button>
+          <button
+            type="button"
+            class="rounded-lg border border-red-200 bg-white px-2.5 py-1 text-xs font-medium text-red-700 hover:bg-red-50"
+            @click="emit('remove', item.id)"
+          >
+            Excluir
+          </button>
+        </div>
+      </li>
+    </ul>
+  </section>
+</template>
+
+<script setup lang="ts">
+import { computed } from "vue";
+import { formatDateBR, formatDateTimeBR } from "@/lib/format";
+import {
+  SUPPORT_ERROR_SEVERITY_COLORS,
+  SUPPORT_ERROR_SEVERITY_LABELS,
+  SUPPORT_ERROR_STATUS_COLORS,
+  SUPPORT_ERROR_STATUS_LABELS,
+  type SupportError,
+} from "@/types/supportErrors";
+
+const props = defineProps<{
+  dateKey: string;
+  errors: SupportError[];
+}>();
+
+const emit = defineEmits<{
+  clear: [];
+  edit: [error: SupportError];
+  remove: [id: string];
+}>();
+
+const label = computed(() => formatDateBR(props.dateKey));
+</script>

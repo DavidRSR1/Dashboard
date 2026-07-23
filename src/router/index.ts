@@ -33,6 +33,12 @@ const router = createRouter({
       meta: { requiresAuth: true },
     },
     {
+      path: "/erros",
+      name: "erros",
+      component: () => import("@/views/SupportErrorsView.vue"),
+      meta: { requiresAuth: true },
+    },
+    {
       path: "/",
       name: "home",
       component: () => import("@/views/CronogramaView.vue"),

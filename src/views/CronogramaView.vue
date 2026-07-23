@@ -24,6 +24,12 @@
             Relatório
           </RouterLink>
           <RouterLink
+            to="/erros"
+            class="rounded-lg border border-emerald-500 px-3 py-2 text-sm hover:bg-emerald-700"
+          >
+            Erros N1
+          </RouterLink>
+          <RouterLink
             to="/perfil"
             class="rounded-lg border border-emerald-500 px-3 py-2 text-sm hover:bg-emerald-700"
           >
