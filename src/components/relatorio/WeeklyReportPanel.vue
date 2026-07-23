@@ -61,12 +61,19 @@
       />
     </div>
 
-    <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
-      <h3 class="text-sm font-semibold text-slate-800">Pré-visualização</h3>
-      <pre class="mt-3 whitespace-pre-wrap font-sans text-sm leading-relaxed text-slate-700">{{
+    <details class="rounded-xl border border-slate-200 bg-slate-50 open:pb-4">
+      <summary
+        class="cursor-pointer list-none px-4 py-3 text-sm font-medium text-slate-700 marker:content-none [&::-webkit-details-marker]:hidden"
+      >
+        <span class="flex items-center justify-between gap-2">
+          <span>Ver texto para copiar</span>
+          <span class="text-xs font-normal text-slate-500">pré-visualização do e-mail</span>
+        </span>
+      </summary>
+      <pre class="mx-4 whitespace-pre-wrap border-t border-slate-200 pt-3 font-sans text-sm leading-relaxed text-slate-700">{{
         reportText
       }}</pre>
-    </div>
+    </details>
   </section>
 </template>
 

@@ -51,20 +51,6 @@
       </p>
 
       <template v-else>
-        <div class="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-emerald-100 bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
-          <span>
-            Dados compartilhados · {{ errors.length }} erro(s) · sync
-            {{ realtimeOk ? "ao vivo" : "a cada 30s" }}
-          </span>
-          <button
-            type="button"
-            class="font-medium underline hover:no-underline"
-            @click="refresh(false)"
-          >
-            Atualizar agora
-          </button>
-        </div>
-
         <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
           <h2 class="mb-4 text-sm font-semibold text-slate-900">Calendário de incidentes</h2>
           <ErrorCalendar
@@ -143,7 +129,6 @@ const modalOpen = ref(false);
 const editing = ref<SupportError | null>(null);
 const loading = ref(true);
 const loadError = ref<string | null>(null);
-const realtimeOk = ref(false);
 const saving = ref(false);
 
 let syncTimer: ReturnType<typeof setInterval> | null = null;
@@ -267,9 +252,7 @@ function subscribeRealtime() {
         void refresh(false);
       },
     )
-    .subscribe((status) => {
-      realtimeOk.value = status === "SUBSCRIBED";
-    });
+    .subscribe();
 }
 
 onMounted(async () => {

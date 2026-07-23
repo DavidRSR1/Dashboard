@@ -39,16 +39,6 @@
       </div>
 
       <SupportWeeklyListPanel :errors="filteredErrors" />
-
-      <p class="text-xs text-slate-500">
-        Resumos do módulo de erros N1.
-        <template v-if="isMaster"> Como master, você vê todos e pode filtrar. </template>
-        <template v-else> Cada pessoa vê só os próprios na área de relatórios. </template>
-        Para calendário e catálogo, abra
-        <RouterLink to="/erros" class="font-medium text-emerald-800 underline hover:no-underline">
-          Erros N1
-        </RouterLink>.
-      </p>
     </template>
   </section>
 </template>
