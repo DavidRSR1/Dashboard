@@ -1,3 +1,4 @@
+import { supabase } from "@/lib/supabase/client";
 import type {
   SupportError,
   SupportErrorFormData,
@@ -6,9 +7,24 @@ import type {
 } from "@/types/supportErrors";
 import { SUPPORT_ERROR_SEVERITY_RANK } from "@/types/supportErrors";
 
-const STORAGE_KEY = "support-errors";
+type SupportErrorRow = {
+  id: string;
+  occurred_at: string;
+  title: string;
+  description: string;
+  resolution: string | null;
+  module: string;
+  status: SupportErrorStatus;
+  severity: SupportErrorSeverity;
+  requester: string | null;
+  agent_id: string | null;
+  resolved_by_id: string | null;
+  transferred_by_id: string | null;
+  created_at: string;
+  updated_at: string;
+};
 
-function normalizeError(raw: Partial<SupportError> & { id: string }): SupportError {
+function normalizeError(raw: Partial<SupportErrorRow> & { id: string }): SupportError {
   const description = raw.description ?? "";
   const title = (raw.title ?? "").trim() || description.slice(0, 80) || "Sem título";
 
@@ -30,20 +46,6 @@ function normalizeError(raw: Partial<SupportError> & { id: string }): SupportErr
   };
 }
 
-function readAll(): SupportError[] {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw) as Partial<SupportError>[];
-    if (!Array.isArray(parsed)) return [];
-    return parsed
-      .filter((item): item is Partial<SupportError> & { id: string } => Boolean(item?.id))
-      .map(normalizeError);
-  } catch {
-    return [];
-  }
-}
-
 function resolveAgentFields(form: SupportErrorFormData): Pick<
   SupportError,
   "agent_id" | "resolved_by_id" | "transferred_by_id"
@@ -63,62 +65,14 @@ function resolveAgentFields(form: SupportErrorFormData): Pick<
   };
 }
 
-function writeAll(errors: SupportError[]): void {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(errors));
-}
-
-function createId(): string {
-  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
-    return crypto.randomUUID();
-  }
-  return `err_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
-}
-
 function toIsoFromLocalInput(value: string): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return new Date().toISOString();
   return date.toISOString();
 }
 
-export function listSupportErrors(): SupportError[] {
-  return readAll().sort(
-    (a, b) => new Date(b.occurred_at).getTime() - new Date(a.occurred_at).getTime(),
-  );
-}
-
-export function createSupportError(form: SupportErrorFormData): SupportError {
-  const now = new Date().toISOString();
-  const item: SupportError = {
-    id: createId(),
-    occurred_at: toIsoFromLocalInput(form.occurred_at),
-    title: form.title.trim(),
-    description: form.description.trim(),
-    resolution: form.resolution.trim() || null,
-    module: form.module.trim(),
-    status: form.status,
-    severity: form.severity,
-    requester: form.requester.trim() || null,
-    ...resolveAgentFields(form),
-    created_at: now,
-    updated_at: now,
-  };
-
-  const all = readAll();
-  all.push(item);
-  writeAll(all);
-  return item;
-}
-
-export function updateSupportError(
-  id: string,
-  form: SupportErrorFormData,
-): SupportError | null {
-  const all = readAll();
-  const index = all.findIndex((item) => item.id === id);
-  if (index < 0) return null;
-
-  const updated: SupportError = {
-    ...all[index],
+function payloadFromForm(form: SupportErrorFormData) {
+  return {
     occurred_at: toIsoFromLocalInput(form.occurred_at),
     title: form.title.trim(),
     description: form.description.trim(),
@@ -130,18 +84,73 @@ export function updateSupportError(
     ...resolveAgentFields(form),
     updated_at: new Date().toISOString(),
   };
-
-  all[index] = updated;
-  writeAll(all);
-  return updated;
 }
 
-export function deleteSupportError(id: string): boolean {
-  const all = readAll();
-  const next = all.filter((item) => item.id !== id);
-  if (next.length === all.length) return false;
-  writeAll(next);
-  return true;
+export async function listSupportErrors(): Promise<{
+  data: SupportError[];
+  error: string | null;
+}> {
+  const { data, error } = await supabase
+    .from("support_errors")
+    .select("*")
+    .order("occurred_at", { ascending: false });
+
+  if (error) {
+    return { data: [], error: error.message };
+  }
+
+  const rows = (data as SupportErrorRow[] | null) ?? [];
+  return {
+    data: rows.map((row) => normalizeError(row)),
+    error: null,
+  };
+}
+
+export async function createSupportError(
+  form: SupportErrorFormData,
+): Promise<{ data: SupportError | null; error: string | null }> {
+  const payload = {
+    ...payloadFromForm(form),
+    created_at: new Date().toISOString(),
+  };
+
+  const { data, error } = await supabase
+    .from("support_errors")
+    .insert(payload)
+    .select("*")
+    .single();
+
+  if (error) {
+    return { data: null, error: error.message };
+  }
+
+  return { data: normalizeError(data as SupportErrorRow), error: null };
+}
+
+export async function updateSupportError(
+  id: string,
+  form: SupportErrorFormData,
+): Promise<{ data: SupportError | null; error: string | null }> {
+  const { data, error } = await supabase
+    .from("support_errors")
+    .update(payloadFromForm(form))
+    .eq("id", id)
+    .select("*")
+    .single();
+
+  if (error) {
+    return { data: null, error: error.message };
+  }
+
+  return { data: normalizeError(data as SupportErrorRow), error: null };
+}
+
+export async function deleteSupportError(
+  id: string,
+): Promise<{ ok: boolean; error: string | null }> {
+  const { error } = await supabase.from("support_errors").delete().eq("id", id);
+  if (error) return { ok: false, error: error.message };
+  return { ok: true, error: null };
 }
 
 export function dateKeyFromIso(iso: string): string {

@@ -1,10 +1,16 @@
+import { supabase } from "@/lib/supabase/client";
 import {
   SUPPORT_AGENT_COLORS,
   type SupportAgent,
   type SupportAgentColorId,
 } from "@/types/supportErrors";
 
-const STORAGE_KEY = "support-agents";
+type SupportAgentRow = {
+  id: string;
+  name: string;
+  color_id: string;
+  created_at: string;
+};
 
 /** Extrai o usuário do e-mail (antes do @). Ex.: david.oliveira@redesaoroque.com.br → david.oliveira */
 export function emailLocalPart(emailOrName: string): string {
@@ -14,32 +20,22 @@ export function emailLocalPart(emailOrName: string): string {
   return at >= 0 ? trimmed.slice(0, at) : trimmed;
 }
 
-function agentIdFromUsername(username: string): string {
-  return `agent_${username}`;
+export function agentIdFromEmail(emailOrName: string): string {
+  const username = emailLocalPart(emailOrName);
+  return username ? `agent_${username}` : "";
 }
 
-function readAll(): SupportAgent[] {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw) as SupportAgent[];
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
+function isColorId(value: string): value is SupportAgentColorId {
+  return SUPPORT_AGENT_COLORS.some((color) => color.id === value);
 }
 
-function writeAll(agents: SupportAgent[]): void {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(agents));
-}
-
-export function listSupportAgents(): SupportAgent[] {
-  return readAll().sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
-}
-
-export function getSupportAgent(id: string | null | undefined): SupportAgent | null {
-  if (!id) return null;
-  return readAll().find((agent) => agent.id === id) ?? null;
+function mapRow(row: SupportAgentRow): SupportAgent {
+  return {
+    id: row.id,
+    name: row.name,
+    colorId: isColorId(row.color_id) ? row.color_id : "teal",
+    created_at: row.created_at,
+  };
 }
 
 function nextColorId(existing: SupportAgent[]): SupportAgentColorId {
@@ -50,79 +46,136 @@ function nextColorId(existing: SupportAgent[]): SupportAgentColorId {
   return SUPPORT_AGENT_COLORS[index].id;
 }
 
-/**
- * Cria ou reutiliza agente a partir do e-mail do perfil.
- * Usa só a parte antes do @ como identificador e nome exibido.
- */
-export function ensureSupportAgentFromEmail(
-  email: string,
-  colorId?: SupportAgentColorId,
-): SupportAgent | null {
-  const username = emailLocalPart(email);
-  if (!username) return null;
+export async function listSupportAgents(): Promise<{
+  data: SupportAgent[];
+  error: string | null;
+}> {
+  const { data, error } = await supabase
+    .from("support_agents")
+    .select("*")
+    .order("name", { ascending: true });
 
-  const all = readAll();
-  const id = agentIdFromUsername(username);
-  const existing = all.find(
-    (agent) =>
-      agent.id === id ||
-      agent.name.localeCompare(username, "pt-BR", { sensitivity: "accent" }) === 0,
-  );
-
-  if (existing) {
-    if (existing.name !== username || existing.id !== id) {
-      const index = all.findIndex((agent) => agent.id === existing.id);
-      all[index] = { ...existing, id, name: username };
-      writeAll(all);
-      return all[index];
-    }
-    return existing;
+  if (error) {
+    return { data: [], error: error.message };
   }
 
-  const agent: SupportAgent = {
+  const rows = (data as SupportAgentRow[] | null) ?? [];
+  return {
+    data: rows.map(mapRow).sort((a, b) => a.name.localeCompare(b.name, "pt-BR")),
+    error: null,
+  };
+}
+
+/**
+ * Garante o agente do usuário logado no banco compartilhado.
+ */
+export async function ensureSupportAgentFromEmail(
+  email: string,
+  colorId?: SupportAgentColorId,
+): Promise<{ data: SupportAgent | null; error: string | null }> {
+  const username = emailLocalPart(email);
+  const id = agentIdFromEmail(email);
+  if (!username || !id) {
+    return { data: null, error: "E-mail inválido." };
+  }
+
+  const listed = await listSupportAgents();
+  if (listed.error) {
+    return { data: null, error: listed.error };
+  }
+
+  const existing = listed.data.find((agent) => agent.id === id);
+  if (existing) {
+    return { data: existing, error: null };
+  }
+
+  const payload = {
     id,
     name: username,
-    colorId: colorId ?? nextColorId(all),
+    color_id: colorId ?? nextColorId(listed.data),
     created_at: new Date().toISOString(),
   };
 
-  all.push(agent);
-  writeAll(all);
-  return agent;
+  const { data, error } = await supabase
+    .from("support_agents")
+    .upsert(payload, { onConflict: "id" })
+    .select("*")
+    .single();
+
+  if (error) {
+    return { data: null, error: error.message };
+  }
+
+  return { data: mapRow(data as SupportAgentRow), error: null };
 }
 
-export function createSupportAgent(
+export async function createSupportAgent(
   emailOrName: string,
   colorId?: SupportAgentColorId,
-): SupportAgent {
-  const agent = ensureSupportAgentFromEmail(emailOrName, colorId);
-  if (!agent) {
-    throw new Error("Informe o e-mail ou usuário do agente.");
+): Promise<{ data: SupportAgent | null; error: string | null }> {
+  const username = emailLocalPart(emailOrName);
+  const id = agentIdFromEmail(emailOrName);
+  if (!username || !id) {
+    return { data: null, error: "Informe o e-mail ou usuário do agente." };
   }
-  if (colorId && agent.colorId !== colorId) {
-    return updateSupportAgentColor(agent.id, colorId) ?? agent;
+
+  const listed = await listSupportAgents();
+  if (listed.error) {
+    return { data: null, error: listed.error };
   }
-  return agent;
+
+  const existing = listed.data.find((agent) => agent.id === id);
+  if (existing) {
+    if (colorId && existing.colorId !== colorId) {
+      return updateSupportAgentColor(existing.id, colorId);
+    }
+    return { data: existing, error: null };
+  }
+
+  const payload = {
+    id,
+    name: username,
+    color_id: colorId ?? nextColorId(listed.data),
+    created_at: new Date().toISOString(),
+  };
+
+  const { data, error } = await supabase
+    .from("support_agents")
+    .insert(payload)
+    .select("*")
+    .single();
+
+  if (error) {
+    return { data: null, error: error.message };
+  }
+
+  return { data: mapRow(data as SupportAgentRow), error: null };
 }
 
-export function updateSupportAgentColor(
+export async function updateSupportAgentColor(
   id: string,
   colorId: SupportAgentColorId,
-): SupportAgent | null {
-  const all = readAll();
-  const index = all.findIndex((agent) => agent.id === id);
-  if (index < 0) return null;
-  all[index] = { ...all[index], colorId };
-  writeAll(all);
-  return all[index];
+): Promise<{ data: SupportAgent | null; error: string | null }> {
+  const { data, error } = await supabase
+    .from("support_agents")
+    .update({ color_id: colorId })
+    .eq("id", id)
+    .select("*")
+    .single();
+
+  if (error) {
+    return { data: null, error: error.message };
+  }
+
+  return { data: mapRow(data as SupportAgentRow), error: null };
 }
 
-export function deleteSupportAgent(id: string): boolean {
-  const all = readAll();
-  const next = all.filter((agent) => agent.id !== id);
-  if (next.length === all.length) return false;
-  writeAll(next);
-  return true;
+export async function deleteSupportAgent(
+  id: string,
+): Promise<{ ok: boolean; error: string | null }> {
+  const { error } = await supabase.from("support_agents").delete().eq("id", id);
+  if (error) return { ok: false, error: error.message };
+  return { ok: true, error: null };
 }
 
 export function agentsById(agents: SupportAgent[]): Map<string, SupportAgent> {

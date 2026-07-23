@@ -38,54 +38,67 @@
     </header>
 
     <main class="mx-auto max-w-7xl space-y-4 px-4 py-6">
-      <SupportAccessPanel
-        v-if="isMaster"
-        :master-email="userEmail"
-      />
-
-      <SupportTeamPanel
-        :agents="agents"
-        :current-agent="currentAgent"
-        @add="handleAddAgent"
-        @update-color="handleUpdateAgentColor"
-        @remove="handleRemoveAgent"
-      />
-
-      <div class="grid gap-4 lg:grid-cols-2">
-        <WeeklyErrorsSummary :summary="weeklySummary" />
-        <MonthlyErrorsSummary :summary="monthlySummary" @select-day="selectDay" />
-      </div>
-
-      <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
-        <h2 class="mb-4 text-sm font-semibold text-slate-900">Calendário de incidentes</h2>
-        <ErrorCalendar
-          :errors="errors"
-          :selected-date-key="selectedDateKey"
-          @select-day="selectDay"
-        />
-      </div>
-
-      <ErrorDayDetail
-        v-if="selectedDateKey"
-        :date-key="selectedDateKey"
-        :errors="selectedDayErrors"
-        :agents="agents"
-        @clear="selectedDateKey = null"
-        @edit="openEdit"
-        @remove="handleRemove"
-      />
-
-      <ErrorListTable
-        :errors="errors"
-        :agents="agents"
-        @edit="openEdit"
-        @remove="handleRemove"
-      />
-
-      <p class="text-xs text-slate-500">
-        Os registros ficam salvos neste navegador (localStorage). Cada membro do time tem uma cor
-        fixa para identificar quem resolveu ou transferiu o chamado.
+      <p v-if="loading" class="rounded-xl border border-slate-200 bg-white px-4 py-8 text-center text-slate-500 shadow-sm">
+        Carregando dados compartilhados...
       </p>
+      <p v-else-if="loadError" class="rounded-xl border border-red-200 bg-red-50 px-4 py-4 text-sm text-red-700 shadow-sm">
+        {{ loadError }}
+        <span class="mt-1 block text-xs text-red-600">
+          Aplique o SQL em supabase/support_errors_shared.sql no Supabase.
+        </span>
+      </p>
+
+      <template v-else>
+        <SupportAccessPanel
+          v-if="isMaster"
+          :master-email="userEmail"
+        />
+
+        <SupportTeamPanel
+          :agents="agents"
+          :current-agent="currentAgent"
+          :is-master="isMaster"
+          @add="handleAddAgent"
+          @update-color="handleUpdateAgentColor"
+          @remove="handleRemoveAgent"
+        />
+
+        <div class="grid gap-4 lg:grid-cols-2">
+          <WeeklyErrorsSummary :summary="weeklySummary" />
+          <MonthlyErrorsSummary :summary="monthlySummary" @select-day="selectDay" />
+        </div>
+
+        <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
+          <h2 class="mb-4 text-sm font-semibold text-slate-900">Calendário de incidentes</h2>
+          <ErrorCalendar
+            :errors="errors"
+            :selected-date-key="selectedDateKey"
+            @select-day="selectDay"
+          />
+        </div>
+
+        <ErrorDayDetail
+          v-if="selectedDateKey"
+          :date-key="selectedDateKey"
+          :errors="selectedDayErrors"
+          :agents="agents"
+          @clear="selectedDateKey = null"
+          @edit="openEdit"
+          @remove="handleRemove"
+        />
+
+        <ErrorListTable
+          :errors="errors"
+          :agents="agents"
+          @edit="openEdit"
+          @remove="handleRemove"
+        />
+
+        <p class="text-xs text-slate-500">
+          Os registros são compartilhados com todo o time (Supabase). Atualização automática a cada
+          30s.
+        </p>
+      </template>
     </main>
 
     <ErrorFormModal
@@ -100,7 +113,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, onUnmounted, ref } from "vue";
 import { supabase } from "@/lib/supabase/client";
 import {
   buildMonthlySummary,
@@ -120,6 +133,7 @@ import {
   updateSupportAgentColor,
 } from "@/lib/supportTeam";
 import { isSupportMaster } from "@/lib/supportAccess";
+import { SYNC_INTERVAL_MS } from "@/lib/syncInterval";
 import type {
   SupportAgent,
   SupportAgentColorId,
@@ -142,6 +156,10 @@ const agents = ref<SupportAgent[]>([]);
 const selectedDateKey = ref<string | null>(null);
 const modalOpen = ref(false);
 const editing = ref<SupportError | null>(null);
+const loading = ref(true);
+const loadError = ref<string | null>(null);
+
+let syncTimer: ReturnType<typeof setInterval> | null = null;
 
 const displayUser = computed(() =>
   userEmail.value ? emailLocalPart(userEmail.value) : null,
@@ -154,13 +172,38 @@ const selectedDayErrors = computed(() =>
   selectedDateKey.value ? errorsForDateKey(errors.value, selectedDateKey.value) : [],
 );
 
-function refresh() {
-  errors.value = listSupportErrors();
-  agents.value = listSupportAgents();
+async function refresh(showLoading = false) {
+  if (showLoading) loading.value = true;
+
   if (userEmail.value) {
-    currentAgent.value = ensureSupportAgentFromEmail(userEmail.value);
-    agents.value = listSupportAgents();
+    const ensured = await ensureSupportAgentFromEmail(userEmail.value);
+    if (ensured.error && !ensured.data) {
+      loadError.value = ensured.error;
+      loading.value = false;
+      return;
+    }
+    currentAgent.value = ensured.data;
   }
+
+  const [errorsRes, agentsRes] = await Promise.all([
+    listSupportErrors(),
+    listSupportAgents(),
+  ]);
+
+  if (errorsRes.error || agentsRes.error) {
+    loadError.value = errorsRes.error ?? agentsRes.error;
+    loading.value = false;
+    return;
+  }
+
+  loadError.value = null;
+  errors.value = errorsRes.data;
+  agents.value = agentsRes.data;
+  if (userEmail.value) {
+    const id = `agent_${emailLocalPart(userEmail.value)}`;
+    currentAgent.value = agentsRes.data.find((agent) => agent.id === id) ?? currentAgent.value;
+  }
+  loading.value = false;
 }
 
 function selectDay(dateKey: string) {
@@ -182,39 +225,63 @@ function closeModal() {
   editing.value = null;
 }
 
-function handleSave(form: SupportErrorFormData) {
-  if (editing.value) {
-    updateSupportError(editing.value.id, form);
-  } else {
-    createSupportError(form);
+async function handleSave(form: SupportErrorFormData) {
+  const result = editing.value
+    ? await updateSupportError(editing.value.id, form)
+    : await createSupportError(form);
+
+  if (result.error) {
+    alert(result.error);
+    return;
   }
-  refresh();
+
+  await refresh();
   closeModal();
 }
 
-function handleRemove(id: string) {
+async function handleRemove(id: string) {
   if (!confirm("Excluir este registro de erro?")) return;
-  deleteSupportError(id);
-  refresh();
-}
-
-function handleAddAgent(payload: { emailOrUser: string; colorId?: SupportAgentColorId }) {
-  createSupportAgent(payload.emailOrUser, payload.colorId);
-  refresh();
-}
-
-function handleUpdateAgentColor(payload: { id: string; colorId: SupportAgentColorId }) {
-  updateSupportAgentColor(payload.id, payload.colorId);
-  refresh();
-}
-
-function handleRemoveAgent(id: string) {
-  if (currentAgent.value && id === currentAgent.value.id) return;
-  if (!confirm("Remover este agente do time? Os registros antigos perdem a cor vinculada.")) {
+  const result = await deleteSupportError(id);
+  if (result.error) {
+    alert(result.error);
     return;
   }
-  deleteSupportAgent(id);
-  refresh();
+  await refresh();
+}
+
+async function handleAddAgent(payload: { emailOrUser: string; colorId?: SupportAgentColorId }) {
+  if (!isMaster.value) return;
+  const result = await createSupportAgent(payload.emailOrUser, payload.colorId);
+  if (result.error) {
+    alert(result.error);
+    return;
+  }
+  await refresh();
+}
+
+async function handleUpdateAgentColor(payload: { id: string; colorId: SupportAgentColorId }) {
+  const canEdit =
+    isMaster.value || (currentAgent.value && currentAgent.value.id === payload.id);
+  if (!canEdit) return;
+
+  const result = await updateSupportAgentColor(payload.id, payload.colorId);
+  if (result.error) {
+    alert(result.error);
+    return;
+  }
+  await refresh();
+}
+
+async function handleRemoveAgent(id: string) {
+  if (!isMaster.value) return;
+  if (currentAgent.value && id === currentAgent.value.id) return;
+  if (!confirm("Remover este agente do time?")) return;
+  const result = await deleteSupportAgent(id);
+  if (result.error) {
+    alert(result.error);
+    return;
+  }
+  await refresh();
 }
 
 onMounted(async () => {
@@ -222,6 +289,13 @@ onMounted(async () => {
     data: { user },
   } = await supabase.auth.getUser();
   userEmail.value = user?.email ?? null;
-  refresh();
+  await refresh(true);
+  syncTimer = setInterval(() => {
+    void refresh(false);
+  }, SYNC_INTERVAL_MS);
+});
+
+onUnmounted(() => {
+  if (syncTimer) clearInterval(syncTimer);
 });
 </script>

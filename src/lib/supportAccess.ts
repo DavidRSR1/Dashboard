@@ -1,9 +1,10 @@
 import { supabase } from "@/lib/supabase/client";
+import { createSupportAgent } from "@/lib/supportTeam";
 
 export const SUPPORT_MASTER_EMAIL = "david.oliveira@redesaoroque.com.br";
 
 const SQL_HINT =
-  "Aplique o arquivo supabase/support_access.sql no SQL Editor do Supabase para liberar o acesso do time.";
+  "Aplique o arquivo supabase/support_errors_shared.sql no SQL Editor do Supabase.";
 
 export function normalizeEmail(email: string | null | undefined): string {
   return (email ?? "").trim().toLowerCase();
@@ -70,6 +71,8 @@ export async function grantSupportAccess(
   if (error) {
     return { ok: false, error: `${error.message}. ${SQL_HINT}` };
   }
+
+  await createSupportAgent(normalized);
 
   return { ok: true, error: null };
 }

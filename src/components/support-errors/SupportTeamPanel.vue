@@ -4,13 +4,22 @@
       <div>
         <h3 class="text-sm font-semibold text-slate-900">Time de suporte</h3>
         <p class="mt-0.5 text-xs text-slate-500">
-          Identidade vem do e-mail do perfil (parte antes de @). Cada pessoa tem uma cor fixa.
+          <template v-if="isMaster">
+            Gerencie os membros e as cores. Identidade = parte do e-mail antes do @.
+          </template>
+          <template v-else>
+            Veja o time e personalize a sua cor. Identidade = parte do e-mail antes do @.
+          </template>
         </p>
       </div>
       <SupportAgentBadge v-if="currentAgent" :agent="currentAgent" prefix="Você:" />
     </div>
 
-    <form class="mt-4 flex flex-wrap gap-2" @submit.prevent="handleAdd">
+    <form
+      v-if="isMaster"
+      class="mt-4 flex flex-wrap gap-2"
+      @submit.prevent="handleAdd"
+    >
       <input
         v-model="emailOrUser"
         type="text"
@@ -35,8 +44,8 @@
       </button>
     </form>
 
-    <p v-if="error" class="mt-2 text-sm text-red-600">{{ error }}</p>
-    <p v-else class="mt-2 text-xs text-slate-400">
+    <p v-if="isMaster && error" class="mt-2 text-sm text-red-600">{{ error }}</p>
+    <p v-else-if="isMaster" class="mt-2 text-xs text-slate-400">
       O domínio é ignorado — fica só o usuário (ex.: david.oliveira).
     </p>
 
@@ -48,6 +57,7 @@
       >
         <SupportAgentBadge :agent="agent" />
         <select
+          v-if="canEditColor(agent.id)"
           class="rounded border border-slate-300 bg-white px-1.5 py-0.5 text-xs text-slate-700"
           :value="agent.colorId"
           @change="onColorChange(agent.id, ($event.target as HTMLSelectElement).value)"
@@ -56,8 +66,14 @@
             {{ color.label }}
           </option>
         </select>
+        <span
+          v-else
+          class="text-[10px] uppercase tracking-wide text-slate-400"
+        >
+          {{ colorLabel(agent.colorId) }}
+        </span>
         <button
-          v-if="!currentAgent || agent.id !== currentAgent.id"
+          v-if="isMaster && (!currentAgent || agent.id !== currentAgent.id)"
           type="button"
           class="text-xs font-medium text-red-700 hover:underline"
           @click="emit('remove', agent.id)"
@@ -67,7 +83,7 @@
       </li>
     </ul>
     <p v-else class="mt-4 text-sm text-slate-400">
-      Nenhum agente no time ainda. Entre com a conta do perfil para aparecer automaticamente.
+      Nenhum membro no time ainda.
     </p>
   </section>
 </template>
@@ -76,14 +92,16 @@
 import { ref } from "vue";
 import {
   SUPPORT_AGENT_COLORS,
+  SUPPORT_AGENT_COLOR_MAP,
   type SupportAgent,
   type SupportAgentColorId,
 } from "@/types/supportErrors";
 import SupportAgentBadge from "@/components/support-errors/SupportAgentBadge.vue";
 
-defineProps<{
+const props = defineProps<{
   agents: SupportAgent[];
   currentAgent: SupportAgent | null;
+  isMaster: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -95,6 +113,15 @@ const emit = defineEmits<{
 const emailOrUser = ref("");
 const colorId = ref<"" | SupportAgentColorId>("");
 const error = ref<string | null>(null);
+
+function canEditColor(agentId: string): boolean {
+  if (props.isMaster) return true;
+  return props.currentAgent?.id === agentId;
+}
+
+function colorLabel(id: SupportAgentColorId): string {
+  return SUPPORT_AGENT_COLOR_MAP[id]?.label ?? id;
+}
 
 function handleAdd() {
   error.value = null;
