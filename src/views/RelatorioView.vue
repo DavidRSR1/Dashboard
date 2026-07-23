@@ -31,15 +31,20 @@
     </header>
 
     <main class="mx-auto max-w-5xl space-y-4 px-4 py-6">
+      <!-- Nível 1: área do relatório -->
       <div
         v-if="canSeeSupportErrors"
-        class="flex gap-2 rounded-lg border border-slate-200 bg-white p-1 shadow-sm"
+        class="inline-flex max-w-full flex-wrap gap-1 rounded-lg border border-slate-200 bg-white p-1 shadow-sm"
+        role="tablist"
+        aria-label="Área do relatório"
       >
         <button
           v-for="area in areas"
           :key="area.id"
           type="button"
-          class="flex-1 rounded-md px-4 py-2 text-sm font-medium transition"
+          role="tab"
+          :aria-selected="activeArea === area.id"
+          class="rounded-md px-4 py-2 text-sm font-semibold transition"
           :class="
             activeArea === area.id
               ? 'bg-emerald-800 text-white'
@@ -51,40 +56,48 @@
         </button>
       </div>
 
-      <!-- Cronograma: tabs internas -->
+      <!-- Cronograma: submenu + conteúdo no mesmo card -->
       <template v-if="activeArea === 'cronograma'">
-        <div class="flex gap-2 rounded-lg border border-slate-200 bg-white p-1 shadow-sm">
-          <button
-            v-for="tab in cronogramaTabs"
-            :key="tab.id"
-            type="button"
-            class="flex-1 rounded-md px-4 py-2 text-sm font-medium transition"
-            :class="
-              cronogramaTab === tab.id
-                ? 'bg-emerald-800 text-white'
-                : 'text-slate-600 hover:bg-slate-50'
-            "
-            @click="cronogramaTab = tab.id"
+        <div class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+          <div
+            class="flex gap-1 border-b border-slate-200 px-2 pt-2 sm:px-4"
+            role="tablist"
+            aria-label="Visão do cronograma"
           >
-            {{ tab.label }}
-          </button>
-        </div>
+            <button
+              v-for="tab in cronogramaTabs"
+              :key="tab.id"
+              type="button"
+              role="tab"
+              :aria-selected="cronogramaTab === tab.id"
+              class="-mb-px border-b-2 px-3 py-2.5 text-sm font-medium transition sm:px-4"
+              :class="
+                cronogramaTab === tab.id
+                  ? 'border-emerald-700 text-emerald-900'
+                  : 'border-transparent text-slate-500 hover:text-slate-800'
+              "
+              @click="cronogramaTab = tab.id"
+            >
+              {{ tab.label }}
+            </button>
+          </div>
 
-        <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
-          <p v-if="loading" class="py-12 text-center text-slate-500">Carregando dados...</p>
-          <p v-else-if="error" class="py-12 text-center text-red-600">{{ error }}</p>
+          <div class="p-4 sm:p-6">
+            <p v-if="loading" class="py-12 text-center text-slate-500">Carregando dados...</p>
+            <p v-else-if="error" class="py-12 text-center text-red-600">{{ error }}</p>
 
-          <WeeklyReportPanel
-            v-else-if="cronogramaTab === 'relatorio'"
-            :atividades="atividades"
-            :eventos="eventos"
-            :user-email="userEmail ?? '—'"
-          />
-          <HistoryTimeline
-            v-else
-            :atividades="atividades"
-            :eventos="eventos"
-          />
+            <WeeklyReportPanel
+              v-else-if="cronogramaTab === 'relatorio'"
+              :atividades="atividades"
+              :eventos="eventos"
+              :user-email="userEmail ?? '—'"
+            />
+            <HistoryTimeline
+              v-else
+              :atividades="atividades"
+              :eventos="eventos"
+            />
+          </div>
         </div>
 
         <p class="text-xs text-slate-500">
