@@ -38,6 +38,11 @@
     </header>
 
     <main class="mx-auto max-w-7xl space-y-4 px-4 py-6">
+      <SupportAccessPanel
+        v-if="isMaster"
+        :master-email="userEmail"
+      />
+
       <SupportTeamPanel
         :agents="agents"
         :current-agent="currentAgent"
@@ -114,6 +119,7 @@ import {
   listSupportAgents,
   updateSupportAgentColor,
 } from "@/lib/supportTeam";
+import { isSupportMaster } from "@/lib/supportAccess";
 import type {
   SupportAgent,
   SupportAgentColorId,
@@ -125,6 +131,7 @@ import ErrorDayDetail from "@/components/support-errors/ErrorDayDetail.vue";
 import ErrorFormModal from "@/components/support-errors/ErrorFormModal.vue";
 import ErrorListTable from "@/components/support-errors/ErrorListTable.vue";
 import MonthlyErrorsSummary from "@/components/support-errors/MonthlyErrorsSummary.vue";
+import SupportAccessPanel from "@/components/support-errors/SupportAccessPanel.vue";
 import SupportTeamPanel from "@/components/support-errors/SupportTeamPanel.vue";
 import WeeklyErrorsSummary from "@/components/support-errors/WeeklyErrorsSummary.vue";
 
@@ -139,6 +146,7 @@ const editing = ref<SupportError | null>(null);
 const displayUser = computed(() =>
   userEmail.value ? emailLocalPart(userEmail.value) : null,
 );
+const isMaster = computed(() => isSupportMaster(userEmail.value));
 
 const weeklySummary = computed(() => buildWeeklySummary(errors.value));
 const monthlySummary = computed(() => buildMonthlySummary(errors.value));

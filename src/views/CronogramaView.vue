@@ -24,6 +24,7 @@
             Relatório
           </RouterLink>
           <RouterLink
+            v-if="canSeeSupportErrors"
             to="/erros"
             class="rounded-lg border border-emerald-500 px-3 py-2 text-sm hover:bg-emerald-700"
           >
@@ -145,10 +146,13 @@ import KanbanHorizonToggle from "@/components/cronograma/KanbanHorizonToggle.vue
 import CalendarTimeline from "@/components/cronograma/CalendarTimeline.vue";
 import { parseStoredKanbanHorizon, type KanbanHorizon } from "@/lib/kanbanFilters";
 import ActivityListTable from "@/components/cronograma/ActivityListTable.vue";
+import { useSupportAccess } from "@/composables/useSupportAccess";
 
 const router = useRouter();
 
 provideCronogramaNow();
+
+const { allowed: canSeeSupportErrors } = useSupportAccess();
 
 let syncTimer: ReturnType<typeof setInterval> | null = null;
 

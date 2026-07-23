@@ -8,6 +8,7 @@
         </div>
         <div class="flex flex-wrap items-center gap-3">
           <RouterLink
+            v-if="canSeeSupportErrors"
             to="/erros"
             class="rounded-lg border border-emerald-500 px-3 py-2 text-sm hover:bg-emerald-700"
           >
@@ -68,7 +69,10 @@
         </RouterLink>
       </section>
 
-      <section class="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+      <section
+        v-if="canSeeSupportErrors"
+        class="rounded-xl border border-slate-200 bg-white p-6 shadow-sm"
+      >
         <h2 class="text-lg font-semibold text-slate-900">Suporte N1 — Erros</h2>
         <p class="mt-1 text-sm text-slate-600">
           Catalogar incidentes reportados, visualizar no calendário e acompanhar resumos semanal e
@@ -123,8 +127,10 @@ import { getShareToken, visitorUrl } from "@/lib/profile";
 import MfaSetupPanel from "@/components/profile/MfaSetupPanel.vue";
 import NotificationPreferencesPanel from "@/components/profile/NotificationPreferencesPanel.vue";
 import ExtensionInstallPanel from "@/components/profile/ExtensionInstallPanel.vue";
+import { useSupportAccess } from "@/composables/useSupportAccess";
 
 const router = useRouter();
+const { allowed: canSeeSupportErrors } = useSupportAccess();
 const userEmail = ref<string | null>(null);
 const mfaConfigured = ref(false);
 const gestorLink = ref<string | null>(null);

@@ -16,6 +16,7 @@
             Cronograma
           </RouterLink>
           <RouterLink
+            v-if="canSeeSupportErrors"
             to="/erros"
             class="rounded-lg border border-emerald-500 px-3 py-2 text-sm hover:bg-emerald-700"
           >
@@ -80,6 +81,9 @@ import { supabase } from "@/lib/supabase/client";
 import type { CronogramaAtividade, CronogramaEvento } from "@/types/cronograma";
 import WeeklyReportPanel from "@/components/relatorio/WeeklyReportPanel.vue";
 import HistoryTimeline from "@/components/relatorio/HistoryTimeline.vue";
+import { useSupportAccess } from "@/composables/useSupportAccess";
+
+const { allowed: canSeeSupportErrors } = useSupportAccess();
 
 const tabs = [
   { id: "relatorio" as const, label: "Relatório para o gestor" },

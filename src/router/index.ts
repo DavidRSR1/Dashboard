@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from "vue-router";
 import { supabase } from "@/lib/supabase/client";
+import { canAccessSupportErrors } from "@/lib/supportAccess";
 
 const router = createRouter({
   history: createWebHistory(),
@@ -36,7 +37,7 @@ const router = createRouter({
       path: "/erros",
       name: "erros",
       component: () => import("@/views/SupportErrorsView.vue"),
-      meta: { requiresAuth: true },
+      meta: { requiresAuth: true, requiresSupportAccess: true },
     },
     {
       path: "/",
@@ -62,6 +63,13 @@ router.beforeEach(async (to) => {
 
   if (to.meta.requiresAuth && !user) {
     return { name: "login" };
+  }
+
+  if (to.meta.requiresSupportAccess) {
+    const allowed = await canAccessSupportErrors(user?.email);
+    if (!allowed) {
+      return { name: "home" };
+    }
   }
 
   return true;
