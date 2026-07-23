@@ -165,16 +165,18 @@
         <div class="flex gap-3 pt-2">
           <button
             type="button"
-            class="flex-1 rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+            class="flex-1 rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+            :disabled="saving"
             @click="emit('close')"
           >
             Cancelar
           </button>
           <button
             type="submit"
-            class="flex-1 rounded-lg bg-emerald-700 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-800"
+            class="flex-1 rounded-lg bg-emerald-700 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-800 disabled:opacity-60"
+            :disabled="saving"
           >
-            Salvar
+            {{ saving ? "Salvando..." : "Salvar" }}
           </button>
         </div>
       </form>
@@ -183,7 +185,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, watch } from "vue";
+import { computed, reactive, ref, watch } from "vue";
 import {
   SUPPORT_ERROR_SEVERITY_OPTIONS,
   SUPPORT_ERROR_STATUS_OPTIONS,
@@ -200,6 +202,7 @@ const props = defineProps<{
   initial: SupportError | null;
   agents: SupportAgent[];
   defaultAgentId?: string;
+  saving?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -208,6 +211,9 @@ const emit = defineEmits<{
 }>();
 
 const form = reactive<SupportErrorFormData>(emptySupportErrorForm());
+const submitted = ref(false);
+
+const saving = computed(() => Boolean(props.saving) || submitted.value);
 
 const selectedAgent = computed(
   () => props.agents.find((agent) => agent.id === form.agent_id) ?? null,
@@ -216,7 +222,11 @@ const selectedAgent = computed(
 watch(
   () => [props.open, props.initial, props.defaultAgentId] as const,
   ([open, initial, defaultAgentId]) => {
-    if (!open) return;
+    if (!open) {
+      submitted.value = false;
+      return;
+    }
+    submitted.value = false;
     const next = initial ? formFromSupportError(initial) : emptySupportErrorForm();
     if (!initial && defaultAgentId) {
       next.agent_id = defaultAgentId;
@@ -253,10 +263,19 @@ watch(
   },
 );
 
+watch(
+  () => props.saving,
+  (value) => {
+    if (!value) submitted.value = false;
+  },
+);
+
 function handleSubmit() {
+  if (saving.value) return;
   if (form.status === "resolvido" && !form.resolved_by_id) return;
   if (form.status === "resolvido" && !form.resolution.trim()) return;
   if (form.status === "encaminhado_n2" && !form.transferred_by_id) return;
+  submitted.value = true;
   emit("save", { ...form });
 }
 </script>

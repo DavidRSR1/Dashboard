@@ -98,6 +98,7 @@
       :initial="editing"
       :agents="agents"
       :default-agent-id="currentAgent?.id ?? ''"
+      :saving="saving"
       @close="closeModal"
       @save="handleSave"
     />
@@ -143,6 +144,7 @@ const editing = ref<SupportError | null>(null);
 const loading = ref(true);
 const loadError = ref<string | null>(null);
 const realtimeOk = ref(false);
+const saving = ref(false);
 
 let syncTimer: ReturnType<typeof setInterval> | null = null;
 let channel: RealtimeChannel | null = null;
@@ -204,32 +206,48 @@ function openEdit(error: SupportError) {
 }
 
 function closeModal() {
+  if (saving.value) return;
   modalOpen.value = false;
   editing.value = null;
 }
 
 async function handleSave(form: SupportErrorFormData) {
-  const result = editing.value
-    ? await updateSupportError(editing.value.id, form)
-    : await createSupportError(form);
+  if (saving.value) return;
+  saving.value = true;
 
-  if (result.error) {
-    alert(result.error);
-    return;
+  try {
+    const editingId = editing.value?.id ?? null;
+    const result = editingId
+      ? await updateSupportError(editingId, form)
+      : await createSupportError(form);
+
+    if (result.error) {
+      alert(result.error);
+      return;
+    }
+
+    modalOpen.value = false;
+    editing.value = null;
+    await refresh();
+  } finally {
+    saving.value = false;
   }
-
-  await refresh();
-  closeModal();
 }
 
 async function handleRemove(id: string) {
+  if (saving.value) return;
   if (!confirm("Excluir este registro de erro?")) return;
-  const result = await deleteSupportError(id);
-  if (result.error) {
-    alert(result.error);
-    return;
+  saving.value = true;
+  try {
+    const result = await deleteSupportError(id);
+    if (result.error) {
+      alert(result.error);
+      return;
+    }
+    await refresh();
+  } finally {
+    saving.value = false;
   }
-  await refresh();
 }
 
 function subscribeRealtime() {
