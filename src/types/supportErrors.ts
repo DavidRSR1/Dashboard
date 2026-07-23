@@ -52,6 +52,8 @@ export type SupportError = {
   resolved_by_id: string | null;
   /** Quem encaminhou / transferiu */
   transferred_by_id: string | null;
+  /** Entrada opcional do glossário de erros conhecidos */
+  glossary_id: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -68,6 +70,26 @@ export type SupportErrorFormData = {
   agent_id: string;
   resolved_by_id: string;
   transferred_by_id: string;
+  glossary_id: string;
+};
+
+export type SupportGlossaryEntry = {
+  id: string;
+  title: string;
+  symptoms: string;
+  cause: string | null;
+  solution: string;
+  module: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type SupportGlossaryFormData = {
+  title: string;
+  symptoms: string;
+  cause: string;
+  solution: string;
+  module: string;
 };
 
 export const SUPPORT_AGENT_COLORS: SupportAgentColorToken[] = [
@@ -221,5 +243,16 @@ export function emptySupportErrorForm(now = new Date()): SupportErrorFormData {
     agent_id: "",
     resolved_by_id: "",
     transferred_by_id: "",
+    glossary_id: "",
+  };
+}
+
+export function emptySupportGlossaryForm(): SupportGlossaryFormData {
+  return {
+    title: "",
+    symptoms: "",
+    cause: "",
+    solution: "",
+    module: "",
   };
 }

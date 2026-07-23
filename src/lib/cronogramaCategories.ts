@@ -3,6 +3,7 @@ import { supabase } from "@/lib/supabase/client";
 export type CronogramaCategoria = {
   id: string;
   name: string;
+  user_id: string;
   archived_at: string | null;
   created_at: string;
   updated_at: string;
@@ -11,6 +12,7 @@ export type CronogramaCategoria = {
 type CategoriaRow = {
   id: string;
   name: string;
+  user_id: string;
   archived_at: string | null;
   created_at: string;
   updated_at: string;
@@ -20,19 +22,40 @@ function mapRow(row: CategoriaRow): CronogramaCategoria {
   return {
     id: row.id,
     name: row.name,
+    user_id: row.user_id,
     archived_at: row.archived_at,
     created_at: row.created_at,
     updated_at: row.updated_at,
   };
 }
 
+async function requireUserId(): Promise<{ userId: string | null; error: string | null }> {
+  const {
+    data: { user },
+    error,
+  } = await supabase.auth.getUser();
+  if (error) {
+    return { userId: null, error: error.message };
+  }
+  if (!user) {
+    return { userId: null, error: "Faça login para gerenciar categorias." };
+  }
+  return { userId: user.id, error: null };
+}
+
 export async function listCronogramaCategorias(): Promise<{
   data: CronogramaCategoria[];
   error: string | null;
 }> {
+  const { userId, error: authError } = await requireUserId();
+  if (!userId) {
+    return { data: [], error: authError };
+  }
+
   const { data, error } = await supabase
     .from("cronograma_categorias")
     .select("*")
+    .eq("user_id", userId)
     .order("name", { ascending: true });
 
   if (error) {
@@ -45,22 +68,29 @@ export async function listCronogramaCategorias(): Promise<{
   };
 }
 
-/** Garante que nomes usados nas atividades existam no catálogo. */
+/** Garante que nomes usados nas atividades do usuário existam no catálogo dele. */
 export async function syncCategoriasFromNames(
   names: string[],
 ): Promise<{ data: CronogramaCategoria[]; error: string | null }> {
+  const { userId, error: authError } = await requireUserId();
+  if (!userId) {
+    return { data: [], error: authError };
+  }
+
   const unique = [
     ...new Set(names.map((name) => name.trim()).filter(Boolean)),
   ];
 
   if (unique.length > 0) {
+    const now = new Date().toISOString();
     const rows = unique.map((name) => ({
       name,
-      updated_at: new Date().toISOString(),
+      user_id: userId,
+      updated_at: now,
     }));
     const { error } = await supabase
       .from("cronograma_categorias")
-      .upsert(rows, { onConflict: "name", ignoreDuplicates: true });
+      .upsert(rows, { onConflict: "user_id,name", ignoreDuplicates: true });
 
     if (error) {
       return { data: [], error: error.message };
@@ -78,11 +108,21 @@ export async function createCronogramaCategoria(
     return { data: null, error: "Informe o nome da categoria." };
   }
 
+  const { userId, error: authError } = await requireUserId();
+  if (!userId) {
+    return { data: null, error: authError };
+  }
+
   const { data, error } = await supabase
     .from("cronograma_categorias")
     .upsert(
-      { name: trimmed, archived_at: null, updated_at: new Date().toISOString() },
-      { onConflict: "name" },
+      {
+        name: trimmed,
+        user_id: userId,
+        archived_at: null,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "user_id,name" },
     )
     .select("*")
     .single();
@@ -107,10 +147,16 @@ export async function renameCronogramaCategoria(
     return { error: null };
   }
 
+  const { userId, error: authError } = await requireUserId();
+  if (!userId) {
+    return { error: authError };
+  }
+
   const { error: catError } = await supabase
     .from("cronograma_categorias")
     .update({ name: trimmed, updated_at: new Date().toISOString() })
-    .eq("id", id);
+    .eq("id", id)
+    .eq("user_id", userId);
 
   if (catError) {
     return { error: catError.message };
@@ -119,14 +165,15 @@ export async function renameCronogramaCategoria(
   const { error: actError } = await supabase
     .from("cronograma_atividades")
     .update({ categoria: trimmed })
-    .eq("categoria", oldName);
+    .eq("categoria", oldName)
+    .eq("created_by", userId);
 
   if (actError) {
-    // tenta reverter o nome no catálogo
     await supabase
       .from("cronograma_categorias")
       .update({ name: oldName, updated_at: new Date().toISOString() })
-      .eq("id", id);
+      .eq("id", id)
+      .eq("user_id", userId);
     return { error: actError.message };
   }
 
@@ -137,13 +184,19 @@ export async function setCronogramaCategoriaArchived(
   id: string,
   archived: boolean,
 ): Promise<{ error: string | null }> {
+  const { userId, error: authError } = await requireUserId();
+  if (!userId) {
+    return { error: authError };
+  }
+
   const { error } = await supabase
     .from("cronograma_categorias")
     .update({
       archived_at: archived ? new Date().toISOString() : null,
       updated_at: new Date().toISOString(),
     })
-    .eq("id", id);
+    .eq("id", id)
+    .eq("user_id", userId);
 
   return { error: error?.message ?? null };
 }

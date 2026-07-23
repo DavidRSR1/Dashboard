@@ -199,23 +199,28 @@ const formOpen = ref(false);
 const editing = ref<CronogramaAtividade | null>(null);
 const categoryManagerOpen = ref(false);
 const userEmail = ref<string | null>(null);
+const currentUserId = ref<string | null>(null);
 const gestorLink = ref<string | null>(null);
 const reminderOffsets = ref<ReminderOffset[]>([]);
 
-const activityCategoriaNames = computed(() =>
-  Array.from(new Set(atividades.value.map((a) => a.categoria).filter(Boolean))),
-);
+const myActivityCategoriaNames = computed(() => {
+  const uid = currentUserId.value;
+  const mine = uid
+    ? atividades.value.filter((a) => a.created_by === uid)
+    : atividades.value;
+  return Array.from(new Set(mine.map((a) => a.categoria).filter(Boolean)));
+});
 
 const visibleCategorias = computed(() => {
   const active = activeCategoriaNames(catalogCategorias.value);
   if (active.length > 0) return active;
-  return activityCategoriaNames.value;
+  return myActivityCategoriaNames.value;
 });
 
 const formCategoryOptions = computed(() => {
   const names = new Set([
     ...activeCategoriaNames(catalogCategorias.value),
-    ...activityCategoriaNames.value,
+    ...myActivityCategoriaNames.value,
   ]);
   return [...names].sort((a, b) => a.localeCompare(b, "pt-BR"));
 });
@@ -234,7 +239,7 @@ watch(visibleCategorias, (cats) => {
 });
 
 async function loadCategorias() {
-  const names = activityCategoriaNames.value;
+  const names = myActivityCategoriaNames.value;
   const synced = await syncCategoriasFromNames(names);
   if (synced.error) {
     const listed = await listCronogramaCategorias();
@@ -245,6 +250,7 @@ async function loadCategorias() {
     catalogCategorias.value = names.map((name) => ({
       id: name,
       name,
+      user_id: currentUserId.value ?? "",
       archived_at: null,
       created_at: "",
       updated_at: "",
@@ -341,6 +347,7 @@ onMounted(async () => {
     data: { user },
   } = await supabase.auth.getUser();
   userEmail.value = user?.email ?? null;
+  currentUserId.value = user?.id ?? null;
 
   if (user) {
     const token = await getShareToken(user.id);
@@ -374,8 +381,13 @@ async function handleFormSubmit(data: CronogramaFormData) {
   const { data: userData } = await supabase.auth.getUser();
   const userId = userData.user?.id ?? null;
 
-  if (data.categoria.trim()) {
-    await createCronogramaCategoria(data.categoria);
+  const categoriaNome = data.categoria.trim();
+  if (categoriaNome) {
+    const created = await createCronogramaCategoria(categoriaNome);
+    if (created.error) {
+      error.value = created.error;
+      return;
+    }
   }
 
   if (editing.value) {
@@ -392,6 +404,9 @@ async function handleFormSubmit(data: CronogramaFormData) {
     }
   }
 
+  if (categoriaNome) {
+    categoria.value = categoriaNome;
+  }
   await loadAtividades();
 }
 

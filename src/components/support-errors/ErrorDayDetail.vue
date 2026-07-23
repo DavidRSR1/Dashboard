@@ -43,6 +43,14 @@
               {{ formatDateTimeBR(item.occurred_at) }} · {{ item.module }}
               <span v-if="item.requester"> · {{ item.requester }}</span>
             </p>
+            <button
+              v-if="item.glossary_id"
+              type="button"
+              class="mt-1 text-xs font-medium text-emerald-800 underline hover:no-underline"
+              @click="emit('open-glossary', item.glossary_id)"
+            >
+              Ver no glossário{{ glossaryTitle(item.glossary_id) }}
+            </button>
             <div class="mt-2 flex flex-wrap gap-1.5">
               <SupportAgentBadge
                 v-if="agentOf(item.agent_id)"
@@ -107,6 +115,7 @@ import {
   SUPPORT_ERROR_STATUS_LABELS,
   type SupportAgent,
   type SupportError,
+  type SupportGlossaryEntry,
 } from "@/types/supportErrors";
 import SupportAgentBadge from "@/components/support-errors/SupportAgentBadge.vue";
 
@@ -114,20 +123,31 @@ const props = defineProps<{
   dateKey: string;
   errors: SupportError[];
   agents: SupportAgent[];
+  glossary?: SupportGlossaryEntry[];
 }>();
 
 const emit = defineEmits<{
   clear: [];
   edit: [error: SupportError];
   remove: [id: string];
+  "open-glossary": [id: string];
 }>();
 
 const label = computed(() => formatDateBR(props.dateKey));
 
 const agentsMap = computed(() => new Map(props.agents.map((agent) => [agent.id, agent])));
+const glossaryMap = computed(
+  () => new Map((props.glossary ?? []).map((entry) => [entry.id, entry])),
+);
 
 function agentOf(id: string | null) {
   if (!id) return null;
   return agentsMap.value.get(id) ?? null;
+}
+
+function glossaryTitle(id: string | null) {
+  if (!id) return "";
+  const entry = glossaryMap.value.get(id);
+  return entry ? ` — ${entry.title}` : "";
 }
 </script>

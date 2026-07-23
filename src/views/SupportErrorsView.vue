@@ -28,16 +28,59 @@
             Perfil
           </RouterLink>
           <button
+            v-if="activeTab === 'incidentes'"
             class="rounded-lg bg-white px-4 py-2 text-sm font-semibold text-emerald-800 hover:bg-emerald-50"
             @click="openCreate"
           >
             + Registrar erro
+          </button>
+          <button
+            v-else
+            class="rounded-lg bg-white px-4 py-2 text-sm font-semibold text-emerald-800 hover:bg-emerald-50"
+            @click="openGlossaryCreate"
+          >
+            + Nova entrada
           </button>
         </div>
       </div>
     </header>
 
     <main class="mx-auto max-w-7xl space-y-4 px-4 py-6">
+      <div
+        class="inline-flex max-w-full flex-wrap gap-1 rounded-lg border border-slate-200 bg-white p-1 shadow-sm"
+        role="tablist"
+        aria-label="Seção de erros"
+      >
+        <button
+          type="button"
+          role="tab"
+          :aria-selected="activeTab === 'incidentes'"
+          class="rounded-md px-4 py-2 text-sm font-semibold transition"
+          :class="
+            activeTab === 'incidentes'
+              ? 'bg-emerald-800 text-white'
+              : 'text-slate-600 hover:bg-slate-50'
+          "
+          @click="setTab('incidentes')"
+        >
+          Incidentes
+        </button>
+        <button
+          type="button"
+          role="tab"
+          :aria-selected="activeTab === 'glossario'"
+          class="rounded-md px-4 py-2 text-sm font-semibold transition"
+          :class="
+            activeTab === 'glossario'
+              ? 'bg-emerald-800 text-white'
+              : 'text-slate-600 hover:bg-slate-50'
+          "
+          @click="setTab('glossario')"
+        >
+          Glossário
+        </button>
+      </div>
+
       <p v-if="loading" class="rounded-xl border border-slate-200 bg-white px-4 py-8 text-center text-slate-500 shadow-sm">
         Carregando dados compartilhados...
       </p>
@@ -50,7 +93,7 @@
         </span>
       </p>
 
-      <template v-else>
+      <template v-else-if="activeTab === 'incidentes'">
         <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
           <h2 class="mb-4 text-sm font-semibold text-slate-900">Calendário de incidentes</h2>
           <ErrorCalendar
@@ -65,17 +108,34 @@
           :date-key="selectedDateKey"
           :errors="selectedDayErrors"
           :agents="agents"
+          :glossary="glossary"
           @clear="selectedDateKey = null"
           @edit="openEdit"
           @remove="handleRemove"
+          @open-glossary="openGlossaryEntry"
         />
 
         <ErrorListTable
           :errors="errors"
           :agents="agents"
+          :glossary="glossary"
           @edit="openEdit"
           @remove="handleRemove"
+          @open-glossary="openGlossaryEntry"
         />
+      </template>
+
+      <template v-else>
+        <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
+          <ErrorGlossaryPanel
+            :entries="glossary"
+            :highlight-id="highlightGlossaryId"
+            @create="openGlossaryCreate"
+            @edit="openGlossaryEdit"
+            @remove="handleGlossaryRemove"
+            @use="useGlossaryEntry"
+          />
+        </div>
       </template>
     </main>
 
@@ -83,18 +143,28 @@
       :open="modalOpen"
       :initial="editing"
       :agents="agents"
+      :glossary="glossary"
       :default-agent-id="currentAgent?.id ?? ''"
+      :prefill-glossary-id="prefillGlossaryId"
       :saving="saving"
       @close="closeModal"
       @save="handleSave"
+    />
+
+    <GlossaryEntryFormModal
+      :open="glossaryModalOpen"
+      :initial="editingGlossary"
+      :saving="glossarySaving"
+      @close="closeGlossaryModal"
+      @save="handleGlossarySave"
     />
   </div>
 </template>
 
 <script setup lang="ts">
 import type { RealtimeChannel } from "@supabase/supabase-js";
-import { computed, onMounted, onUnmounted, ref } from "vue";
-import { useRoute } from "vue-router";
+import { computed, onMounted, onUnmounted, ref, watch } from "vue";
+import { useRoute, useRouter } from "vue-router";
 import { supabase } from "@/lib/supabase/client";
 import {
   createSupportError,
@@ -103,6 +173,12 @@ import {
   listSupportErrors,
   updateSupportError,
 } from "@/lib/supportErrors";
+import {
+  createSupportGlossaryEntry,
+  deleteSupportGlossaryEntry,
+  listSupportGlossary,
+  updateSupportGlossaryEntry,
+} from "@/lib/supportGlossary";
 import {
   emailLocalPart,
   ensureSupportAgentFromEmail,
@@ -113,23 +189,37 @@ import type {
   SupportAgent,
   SupportError,
   SupportErrorFormData,
+  SupportGlossaryEntry,
+  SupportGlossaryFormData,
 } from "@/types/supportErrors";
 import ErrorCalendar from "@/components/support-errors/ErrorCalendar.vue";
 import ErrorDayDetail from "@/components/support-errors/ErrorDayDetail.vue";
 import ErrorFormModal from "@/components/support-errors/ErrorFormModal.vue";
+import ErrorGlossaryPanel from "@/components/support-errors/ErrorGlossaryPanel.vue";
 import ErrorListTable from "@/components/support-errors/ErrorListTable.vue";
+import GlossaryEntryFormModal from "@/components/support-errors/GlossaryEntryFormModal.vue";
 
 const route = useRoute();
+const router = useRouter();
 const userEmail = ref<string | null>(null);
 const currentAgent = ref<SupportAgent | null>(null);
 const errors = ref<SupportError[]>([]);
 const agents = ref<SupportAgent[]>([]);
+const glossary = ref<SupportGlossaryEntry[]>([]);
 const selectedDateKey = ref<string | null>(null);
 const modalOpen = ref(false);
 const editing = ref<SupportError | null>(null);
+const prefillGlossaryId = ref<string | null>(null);
 const loading = ref(true);
 const loadError = ref<string | null>(null);
 const saving = ref(false);
+const glossaryModalOpen = ref(false);
+const editingGlossary = ref<SupportGlossaryEntry | null>(null);
+const glossarySaving = ref(false);
+const highlightGlossaryId = ref<string | null>(null);
+
+type TabId = "incidentes" | "glossario";
+const activeTab = ref<TabId>("incidentes");
 
 let syncTimer: ReturnType<typeof setInterval> | null = null;
 let channel: RealtimeChannel | null = null;
@@ -141,6 +231,26 @@ const displayUser = computed(() =>
 const selectedDayErrors = computed(() =>
   selectedDateKey.value ? errorsForDateKey(errors.value, selectedDateKey.value) : [],
 );
+
+function tabFromQuery(value: unknown): TabId {
+  return value === "glossario" ? "glossario" : "incidentes";
+}
+
+function setTab(tab: TabId) {
+  activeTab.value = tab;
+  const query = { ...route.query } as Record<string, string | string[] | undefined>;
+  if (tab === "glossario") {
+    query.tab = "glossario";
+  } else {
+    delete query.tab;
+  }
+  void router.replace({ query });
+}
+
+function openGlossaryEntry(id: string) {
+  highlightGlossaryId.value = id;
+  setTab("glossario");
+}
 
 async function refresh(showLoading = false) {
   if (showLoading) loading.value = true;
@@ -155,13 +265,14 @@ async function refresh(showLoading = false) {
     currentAgent.value = ensured.data;
   }
 
-  const [errorsRes, agentsRes] = await Promise.all([
+  const [errorsRes, agentsRes, glossaryRes] = await Promise.all([
     listSupportErrors(),
     listSupportAgents(),
+    listSupportGlossary(),
   ]);
 
-  if (errorsRes.error || agentsRes.error) {
-    loadError.value = errorsRes.error ?? agentsRes.error;
+  if (errorsRes.error || agentsRes.error || glossaryRes.error) {
+    loadError.value = errorsRes.error ?? agentsRes.error ?? glossaryRes.error;
     loading.value = false;
     return;
   }
@@ -169,6 +280,7 @@ async function refresh(showLoading = false) {
   loadError.value = null;
   errors.value = errorsRes.data;
   agents.value = agentsRes.data;
+  glossary.value = glossaryRes.data;
   if (userEmail.value) {
     const id = `agent_${emailLocalPart(userEmail.value)}`;
     currentAgent.value = agentsRes.data.find((agent) => agent.id === id) ?? currentAgent.value;
@@ -182,11 +294,13 @@ function selectDay(dateKey: string) {
 
 function openCreate() {
   editing.value = null;
+  prefillGlossaryId.value = null;
   modalOpen.value = true;
 }
 
 function openEdit(error: SupportError) {
   editing.value = error;
+  prefillGlossaryId.value = null;
   modalOpen.value = true;
 }
 
@@ -194,6 +308,14 @@ function closeModal() {
   if (saving.value) return;
   modalOpen.value = false;
   editing.value = null;
+  prefillGlossaryId.value = null;
+}
+
+function useGlossaryEntry(entry: SupportGlossaryEntry) {
+  editing.value = null;
+  prefillGlossaryId.value = entry.id;
+  setTab("incidentes");
+  modalOpen.value = true;
 }
 
 async function handleSave(form: SupportErrorFormData) {
@@ -213,6 +335,7 @@ async function handleSave(form: SupportErrorFormData) {
 
     modalOpen.value = false;
     editing.value = null;
+    prefillGlossaryId.value = null;
     await refresh();
   } finally {
     saving.value = false;
@@ -235,6 +358,66 @@ async function handleRemove(id: string) {
   }
 }
 
+function openGlossaryCreate() {
+  editingGlossary.value = null;
+  glossaryModalOpen.value = true;
+}
+
+function openGlossaryEdit(entry: SupportGlossaryEntry) {
+  editingGlossary.value = entry;
+  glossaryModalOpen.value = true;
+}
+
+function closeGlossaryModal() {
+  if (glossarySaving.value) return;
+  glossaryModalOpen.value = false;
+  editingGlossary.value = null;
+}
+
+async function handleGlossarySave(form: SupportGlossaryFormData) {
+  if (glossarySaving.value) return;
+  glossarySaving.value = true;
+  try {
+    const editingId = editingGlossary.value?.id ?? null;
+    const result = editingId
+      ? await updateSupportGlossaryEntry(editingId, form)
+      : await createSupportGlossaryEntry(form);
+
+    if (result.error) {
+      alert(result.error);
+      return;
+    }
+
+    glossaryModalOpen.value = false;
+    editingGlossary.value = null;
+    if (result.data) {
+      highlightGlossaryId.value = result.data.id;
+    }
+    await refresh();
+  } finally {
+    glossarySaving.value = false;
+  }
+}
+
+async function handleGlossaryRemove(id: string) {
+  if (glossarySaving.value) return;
+  if (!confirm("Excluir esta entrada do glossário?")) return;
+  glossarySaving.value = true;
+  try {
+    const result = await deleteSupportGlossaryEntry(id);
+    if (result.error) {
+      alert(result.error);
+      return;
+    }
+    if (highlightGlossaryId.value === id) {
+      highlightGlossaryId.value = null;
+    }
+    await refresh();
+  } finally {
+    glossarySaving.value = false;
+  }
+}
+
 function subscribeRealtime() {
   channel = supabase
     .channel("support-errors-shared")
@@ -252,10 +435,26 @@ function subscribeRealtime() {
         void refresh(false);
       },
     )
+    .on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "support_error_glossary" },
+      () => {
+        void refresh(false);
+      },
+    )
     .subscribe();
 }
 
+watch(
+  () => route.query.tab,
+  (tab) => {
+    activeTab.value = tabFromQuery(tab);
+  },
+);
+
 onMounted(async () => {
+  activeTab.value = tabFromQuery(route.query.tab);
+
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -265,6 +464,12 @@ onMounted(async () => {
   const dia = route.query.dia;
   if (typeof dia === "string" && /^\d{4}-\d{2}-\d{2}$/.test(dia)) {
     selectedDateKey.value = dia;
+  }
+
+  const glossarioId = route.query.glossario;
+  if (typeof glossarioId === "string" && glossarioId) {
+    highlightGlossaryId.value = glossarioId;
+    activeTab.value = "glossario";
   }
 
   subscribeRealtime();

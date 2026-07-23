@@ -183,6 +183,58 @@ end $$;
 grant select, insert, update, delete on public.support_errors to authenticated;
 
 -- ---------------------------------------------------------------------------
+-- Glossário / manual de erros conhecidos (compartilhado do time N1)
+-- ---------------------------------------------------------------------------
+create table if not exists public.support_error_glossary (
+  id uuid primary key default gen_random_uuid(),
+  title text not null,
+  symptoms text not null default '',
+  cause text,
+  solution text not null default '',
+  module text not null default '',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists support_error_glossary_title_idx
+  on public.support_error_glossary (title);
+
+alter table public.support_error_glossary enable row level security;
+
+do $$ begin
+  create policy "support_error_glossary_select"
+    on public.support_error_glossary for select to authenticated using (true);
+exception when duplicate_object then null;
+end $$;
+
+do $$ begin
+  create policy "support_error_glossary_insert"
+    on public.support_error_glossary for insert to authenticated with check (true);
+exception when duplicate_object then null;
+end $$;
+
+do $$ begin
+  create policy "support_error_glossary_update"
+    on public.support_error_glossary for update to authenticated using (true) with check (true);
+exception when duplicate_object then null;
+end $$;
+
+do $$ begin
+  create policy "support_error_glossary_delete"
+    on public.support_error_glossary for delete to authenticated using (true);
+exception when duplicate_object then null;
+end $$;
+
+grant select, insert, update, delete on public.support_error_glossary to authenticated;
+
+-- Vínculo opcional incidente → glossário
+alter table public.support_errors
+  add column if not exists glossary_id uuid references public.support_error_glossary (id) on delete set null;
+
+create index if not exists support_errors_glossary_id_idx
+  on public.support_errors (glossary_id);
+
+-- ---------------------------------------------------------------------------
 -- Realtime
 -- ---------------------------------------------------------------------------
 do $$
@@ -193,6 +245,10 @@ begin
   end;
   begin
     alter publication supabase_realtime add table public.support_agents;
+  exception when duplicate_object then null;
+  end;
+  begin
+    alter publication supabase_realtime add table public.support_error_glossary;
   exception when duplicate_object then null;
   end;
 end $$;

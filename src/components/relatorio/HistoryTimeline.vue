@@ -23,8 +23,11 @@
       </select>
     </div>
 
-    <p v-if="filteredEvents.length === 0" class="py-12 text-center text-slate-500">
-      Nenhum evento encontrado para os filtros selecionados.
+    <p v-if="!userId" class="py-12 text-center text-slate-500">
+      Faça login para ver o seu histórico.
+    </p>
+    <p v-else-if="filteredEvents.length === 0" class="py-12 text-center text-slate-500">
+      Nenhum evento seu encontrado para os filtros selecionados.
     </p>
 
     <ol v-else class="relative space-y-0 border-l-2 border-emerald-200 pl-6">
@@ -62,6 +65,7 @@ import type { CronogramaAtividade, CronogramaEvento } from "@/types/cronograma";
 const props = defineProps<{
   atividades: CronogramaAtividade[];
   eventos: CronogramaEvento[];
+  userId: string | null;
 }>();
 
 const filterTipo = ref<"todos" | "criada" | "status_alterado" | "pronto">("todos");
@@ -72,9 +76,12 @@ const atividadeMap = computed(
 );
 
 const filteredEvents = computed(() => {
-  let list = [...props.eventos].sort(
-    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
-  );
+  const uid = props.userId;
+  let list = [...props.eventos]
+    .filter((e) => Boolean(uid) && e.created_by === uid)
+    .sort(
+      (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+    );
 
   if (filterWeeks.value > 0) {
     const cutoff = new Date();

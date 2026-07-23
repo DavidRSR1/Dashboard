@@ -96,6 +96,7 @@
               v-else
               :atividades="atividades"
               :eventos="eventos"
+              :user-id="userId"
             />
           </div>
         </div>
@@ -147,6 +148,7 @@ const eventos = ref<CronogramaEvento[]>([]);
 const loading = ref(true);
 const error = ref<string | null>(null);
 const userEmail = ref<string | null>(null);
+const userId = ref<string | null>(null);
 
 const headerTitle = computed(() =>
   activeArea.value === "suporte" ? "Relatórios — Suporte N1" : "Relatório semanal",
@@ -199,6 +201,7 @@ onMounted(async () => {
     data: { user },
   } = await supabase.auth.getUser();
   userEmail.value = user?.email ?? null;
+  userId.value = user?.id ?? null;
   await loadData();
 });
 </script>
