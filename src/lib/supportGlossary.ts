@@ -1,8 +1,7 @@
 import { supabase } from "@/lib/supabase/client";
-import {
-  emptySupportGlossaryForm,
-  type SupportGlossaryEntry,
-  type SupportGlossaryFormData,
+import type {
+  SupportGlossaryEntry,
+  SupportGlossaryFormData,
 } from "@/types/supportErrors";
 
 type GlossaryRow = {
@@ -130,14 +129,7 @@ export function filterGlossaryEntries(
   });
 }
 
-export function suggestIncidentFieldsFromGlossary(
-  entry: SupportGlossaryEntry,
-): Pick<
-  ReturnType<typeof emptySupportGlossaryForm> extends SupportGlossaryFormData
-    ? import("@/types/supportErrors").SupportErrorFormData
-    : never,
-  never
-> & {
+export function incidentDefaultsFromGlossary(entry: SupportGlossaryEntry): {
   title: string;
   description: string;
   module: string;
