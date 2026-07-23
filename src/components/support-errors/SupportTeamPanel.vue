@@ -4,17 +4,18 @@
       <div>
         <h3 class="text-sm font-semibold text-slate-900">Time de suporte</h3>
         <p class="mt-0.5 text-xs text-slate-500">
-          Cada pessoa tem uma cor fixa para identificar quem resolveu ou transferiu.
+          Identidade vem do e-mail do perfil (parte antes de @). Cada pessoa tem uma cor fixa.
         </p>
       </div>
+      <SupportAgentBadge v-if="currentAgent" :agent="currentAgent" prefix="Você:" />
     </div>
 
     <form class="mt-4 flex flex-wrap gap-2" @submit.prevent="handleAdd">
       <input
-        v-model="name"
+        v-model="emailOrUser"
         type="text"
         required
-        placeholder="Nome do agente"
+        placeholder="E-mail do colega (ex.: nome.sobrenome@...)"
         class="min-w-48 flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900"
       />
       <select
@@ -35,6 +36,9 @@
     </form>
 
     <p v-if="error" class="mt-2 text-sm text-red-600">{{ error }}</p>
+    <p v-else class="mt-2 text-xs text-slate-400">
+      O domínio é ignorado — fica só o usuário (ex.: david.oliveira).
+    </p>
 
     <ul v-if="agents.length" class="mt-4 flex flex-wrap gap-2">
       <li
@@ -53,6 +57,7 @@
           </option>
         </select>
         <button
+          v-if="!currentAgent || agent.id !== currentAgent.id"
           type="button"
           class="text-xs font-medium text-red-700 hover:underline"
           @click="emit('remove', agent.id)"
@@ -62,7 +67,7 @@
       </li>
     </ul>
     <p v-else class="mt-4 text-sm text-slate-400">
-      Nenhum agente cadastrado ainda. Adicione o time para colorir os registros.
+      Nenhum agente no time ainda. Entre com a conta do perfil para aparecer automaticamente.
     </p>
   </section>
 </template>
@@ -78,30 +83,31 @@ import SupportAgentBadge from "@/components/support-errors/SupportAgentBadge.vue
 
 defineProps<{
   agents: SupportAgent[];
+  currentAgent: SupportAgent | null;
 }>();
 
 const emit = defineEmits<{
-  add: [payload: { name: string; colorId?: SupportAgentColorId }];
+  add: [payload: { emailOrUser: string; colorId?: SupportAgentColorId }];
   "update-color": [payload: { id: string; colorId: SupportAgentColorId }];
   remove: [id: string];
 }>();
 
-const name = ref("");
+const emailOrUser = ref("");
 const colorId = ref<"" | SupportAgentColorId>("");
 const error = ref<string | null>(null);
 
 function handleAdd() {
   error.value = null;
-  const trimmed = name.value.trim();
+  const trimmed = emailOrUser.value.trim();
   if (!trimmed) {
-    error.value = "Informe o nome do agente.";
+    error.value = "Informe o e-mail ou usuário do colega.";
     return;
   }
   emit("add", {
-    name: trimmed,
+    emailOrUser: trimmed,
     colorId: colorId.value || undefined,
   });
-  name.value = "";
+  emailOrUser.value = "";
   colorId.value = "";
 }
 

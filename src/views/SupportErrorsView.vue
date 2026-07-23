@@ -5,7 +5,7 @@
         <div>
           <h1 class="text-xl font-bold">Suporte N1 — Erros</h1>
           <p class="text-sm text-emerald-100">
-            {{ userEmail ? userEmail : "Carregando..." }} — catalogação e análise de incidentes
+            {{ displayUser ? displayUser : "Carregando..." }} — catalogação e análise de incidentes
           </p>
         </div>
         <div class="flex flex-wrap items-center gap-3">
@@ -40,6 +40,7 @@
     <main class="mx-auto max-w-7xl space-y-4 px-4 py-6">
       <SupportTeamPanel
         :agents="agents"
+        :current-agent="currentAgent"
         @add="handleAddAgent"
         @update-color="handleUpdateAgentColor"
         @remove="handleRemoveAgent"
@@ -86,6 +87,7 @@
       :open="modalOpen"
       :initial="editing"
       :agents="agents"
+      :default-agent-id="currentAgent?.id ?? ''"
       @close="closeModal"
       @save="handleSave"
     />
@@ -107,6 +109,8 @@ import {
 import {
   createSupportAgent,
   deleteSupportAgent,
+  emailLocalPart,
+  ensureSupportAgentFromEmail,
   listSupportAgents,
   updateSupportAgentColor,
 } from "@/lib/supportTeam";
@@ -125,11 +129,16 @@ import SupportTeamPanel from "@/components/support-errors/SupportTeamPanel.vue";
 import WeeklyErrorsSummary from "@/components/support-errors/WeeklyErrorsSummary.vue";
 
 const userEmail = ref<string | null>(null);
+const currentAgent = ref<SupportAgent | null>(null);
 const errors = ref<SupportError[]>([]);
 const agents = ref<SupportAgent[]>([]);
 const selectedDateKey = ref<string | null>(null);
 const modalOpen = ref(false);
 const editing = ref<SupportError | null>(null);
+
+const displayUser = computed(() =>
+  userEmail.value ? emailLocalPart(userEmail.value) : null,
+);
 
 const weeklySummary = computed(() => buildWeeklySummary(errors.value));
 const monthlySummary = computed(() => buildMonthlySummary(errors.value));
@@ -140,6 +149,10 @@ const selectedDayErrors = computed(() =>
 function refresh() {
   errors.value = listSupportErrors();
   agents.value = listSupportAgents();
+  if (userEmail.value) {
+    currentAgent.value = ensureSupportAgentFromEmail(userEmail.value);
+    agents.value = listSupportAgents();
+  }
 }
 
 function selectDay(dateKey: string) {
@@ -177,8 +190,8 @@ function handleRemove(id: string) {
   refresh();
 }
 
-function handleAddAgent(payload: { name: string; colorId?: SupportAgentColorId }) {
-  createSupportAgent(payload.name, payload.colorId);
+function handleAddAgent(payload: { emailOrUser: string; colorId?: SupportAgentColorId }) {
+  createSupportAgent(payload.emailOrUser, payload.colorId);
   refresh();
 }
 
@@ -188,6 +201,7 @@ function handleUpdateAgentColor(payload: { id: string; colorId: SupportAgentColo
 }
 
 function handleRemoveAgent(id: string) {
+  if (currentAgent.value && id === currentAgent.value.id) return;
   if (!confirm("Remover este agente do time? Os registros antigos perdem a cor vinculada.")) {
     return;
   }

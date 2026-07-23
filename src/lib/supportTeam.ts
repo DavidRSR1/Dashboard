@@ -6,11 +6,16 @@ import {
 
 const STORAGE_KEY = "support-agents";
 
-function createId(): string {
-  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
-    return crypto.randomUUID();
-  }
-  return `agent_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+/** Extrai o usuário do e-mail (antes do @). Ex.: david.oliveira@redesaoroque.com.br → david.oliveira */
+export function emailLocalPart(emailOrName: string): string {
+  const trimmed = emailOrName.trim().toLowerCase();
+  if (!trimmed) return "";
+  const at = trimmed.indexOf("@");
+  return at >= 0 ? trimmed.slice(0, at) : trimmed;
+}
+
+function agentIdFromUsername(username: string): string {
+  return `agent_${username}`;
 }
 
 function readAll(): SupportAgent[] {
@@ -45,27 +50,58 @@ function nextColorId(existing: SupportAgent[]): SupportAgentColorId {
   return SUPPORT_AGENT_COLORS[index].id;
 }
 
-export function createSupportAgent(name: string, colorId?: SupportAgentColorId): SupportAgent {
-  const trimmed = name.trim();
-  if (!trimmed) {
-    throw new Error("Nome do agente é obrigatório.");
-  }
+/**
+ * Cria ou reutiliza agente a partir do e-mail do perfil.
+ * Usa só a parte antes do @ como identificador e nome exibido.
+ */
+export function ensureSupportAgentFromEmail(
+  email: string,
+  colorId?: SupportAgentColorId,
+): SupportAgent | null {
+  const username = emailLocalPart(email);
+  if (!username) return null;
 
   const all = readAll();
-  const duplicate = all.find(
-    (agent) => agent.name.localeCompare(trimmed, "pt-BR", { sensitivity: "accent" }) === 0,
+  const id = agentIdFromUsername(username);
+  const existing = all.find(
+    (agent) =>
+      agent.id === id ||
+      agent.name.localeCompare(username, "pt-BR", { sensitivity: "accent" }) === 0,
   );
-  if (duplicate) return duplicate;
+
+  if (existing) {
+    if (existing.name !== username || existing.id !== id) {
+      const index = all.findIndex((agent) => agent.id === existing.id);
+      all[index] = { ...existing, id, name: username };
+      writeAll(all);
+      return all[index];
+    }
+    return existing;
+  }
 
   const agent: SupportAgent = {
-    id: createId(),
-    name: trimmed,
+    id,
+    name: username,
     colorId: colorId ?? nextColorId(all),
     created_at: new Date().toISOString(),
   };
 
   all.push(agent);
   writeAll(all);
+  return agent;
+}
+
+export function createSupportAgent(
+  emailOrName: string,
+  colorId?: SupportAgentColorId,
+): SupportAgent {
+  const agent = ensureSupportAgentFromEmail(emailOrName, colorId);
+  if (!agent) {
+    throw new Error("Informe o e-mail ou usuário do agente.");
+  }
+  if (colorId && agent.colorId !== colorId) {
+    return updateSupportAgentColor(agent.id, colorId) ?? agent;
+  }
   return agent;
 }
 

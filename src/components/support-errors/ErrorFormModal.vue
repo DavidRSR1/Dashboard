@@ -159,7 +159,7 @@
         </div>
 
         <p v-if="agents.length === 0" class="text-xs text-amber-700">
-          Cadastre o time de suporte na página para poder identificar quem resolveu ou transferiu.
+          Faça login com a conta do perfil — o usuário (antes do @) entra automaticamente no time.
         </p>
 
         <div class="flex gap-3 pt-2">
@@ -199,6 +199,7 @@ const props = defineProps<{
   open: boolean;
   initial: SupportError | null;
   agents: SupportAgent[];
+  defaultAgentId?: string;
 }>();
 
 const emit = defineEmits<{
@@ -213,10 +214,15 @@ const selectedAgent = computed(
 );
 
 watch(
-  () => [props.open, props.initial] as const,
-  ([open, initial]) => {
+  () => [props.open, props.initial, props.defaultAgentId] as const,
+  ([open, initial, defaultAgentId]) => {
     if (!open) return;
     const next = initial ? formFromSupportError(initial) : emptySupportErrorForm();
+    if (!initial && defaultAgentId) {
+      next.agent_id = defaultAgentId;
+      next.resolved_by_id = defaultAgentId;
+      next.transferred_by_id = defaultAgentId;
+    }
     Object.assign(form, next);
   },
   { immediate: true },
