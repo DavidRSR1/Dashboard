@@ -112,6 +112,7 @@ import WeeklyReportPanel from "@/components/relatorio/WeeklyReportPanel.vue";
 import HistoryTimeline from "@/components/relatorio/HistoryTimeline.vue";
 import SupportReportsPanel from "@/components/relatorio/SupportReportsPanel.vue";
 import { useSupportAccess } from "@/composables/useSupportAccess";
+import { isSupportMaster } from "@/lib/supportAccess";
 import { emailLocalPart } from "@/lib/supportTeam";
 
 const { allowed: canSeeSupportErrors } = useSupportAccess();
@@ -141,7 +142,9 @@ const headerTitle = computed(() =>
 const headerSubtitle = computed(() => {
   const who = userEmail.value ? emailLocalPart(userEmail.value) : "Carregando...";
   if (activeArea.value === "suporte") {
-    return `${who} — resumos semanal e mensal de incidentes`;
+    return isSupportMaster(userEmail.value)
+      ? `${who} — todos os incidentes (com filtro)`
+      : `${who} — apenas os seus incidentes`;
   }
   return `${userEmail.value ?? "Carregando..."} — entrega às sextas, 10h`;
 });

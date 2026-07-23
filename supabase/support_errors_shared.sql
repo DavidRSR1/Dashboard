@@ -1,6 +1,6 @@
 -- Módulo compartilhado de erros N1 (acesso + agentes + registros).
 -- Master: david.oliveira@redesaoroque.com.br
--- Cole TODO este arquivo no SQL Editor do Supabase e execute.
+-- Sem comandos DROP. Seguro reexecutar (políticas já existentes são ignoradas).
 
 create extension if not exists "pgcrypto";
 
@@ -15,42 +15,41 @@ create table if not exists public.support_access (
 
 alter table public.support_access enable row level security;
 
-drop policy if exists "support_access_select_authenticated" on public.support_access;
-create policy "support_access_select_authenticated"
-  on public.support_access
-  for select
-  to authenticated
-  using (true);
+do $$ begin
+  create policy "support_access_select_authenticated"
+    on public.support_access for select to authenticated using (true);
+exception when duplicate_object then null;
+end $$;
 
-drop policy if exists "support_access_insert_master" on public.support_access;
-create policy "support_access_insert_master"
-  on public.support_access
-  for insert
-  to authenticated
-  with check (
-    lower(coalesce(auth.jwt() ->> 'email', '')) = 'david.oliveira@redesaoroque.com.br'
-  );
+do $$ begin
+  create policy "support_access_insert_master"
+    on public.support_access for insert to authenticated
+    with check (
+      lower(coalesce(auth.jwt() ->> 'email', '')) = 'david.oliveira@redesaoroque.com.br'
+    );
+exception when duplicate_object then null;
+end $$;
 
-drop policy if exists "support_access_delete_master" on public.support_access;
-create policy "support_access_delete_master"
-  on public.support_access
-  for delete
-  to authenticated
-  using (
-    lower(coalesce(auth.jwt() ->> 'email', '')) = 'david.oliveira@redesaoroque.com.br'
-  );
+do $$ begin
+  create policy "support_access_delete_master"
+    on public.support_access for delete to authenticated
+    using (
+      lower(coalesce(auth.jwt() ->> 'email', '')) = 'david.oliveira@redesaoroque.com.br'
+    );
+exception when duplicate_object then null;
+end $$;
 
-drop policy if exists "support_access_update_master" on public.support_access;
-create policy "support_access_update_master"
-  on public.support_access
-  for update
-  to authenticated
-  using (
-    lower(coalesce(auth.jwt() ->> 'email', '')) = 'david.oliveira@redesaoroque.com.br'
-  )
-  with check (
-    lower(coalesce(auth.jwt() ->> 'email', '')) = 'david.oliveira@redesaoroque.com.br'
-  );
+do $$ begin
+  create policy "support_access_update_master"
+    on public.support_access for update to authenticated
+    using (
+      lower(coalesce(auth.jwt() ->> 'email', '')) = 'david.oliveira@redesaoroque.com.br'
+    )
+    with check (
+      lower(coalesce(auth.jwt() ->> 'email', '')) = 'david.oliveira@redesaoroque.com.br'
+    );
+exception when duplicate_object then null;
+end $$;
 
 grant select, insert, update, delete on public.support_access to authenticated;
 
@@ -73,7 +72,6 @@ as $$
   select 'agent_' || split_part(lower(coalesce(auth.jwt() ->> 'email', '')), '@', 1);
 $$;
 
--- Mantida por compatibilidade (app ainda pode chamá-la)
 create or replace function public.has_support_access()
 returns boolean
 language sql
@@ -90,14 +88,12 @@ as $$
     );
 $$;
 
-revoke all on function public.has_support_access() from public;
 grant execute on function public.has_support_access() to authenticated;
 grant execute on function public.is_support_master() to authenticated;
 grant execute on function public.support_agent_id_for_me() to authenticated;
 
 -- ---------------------------------------------------------------------------
--- Agentes (cores do time) — compartilhado entre autenticados
--- Controle de "quem vê /erros" fica no app via support_access.
+-- Agentes
 -- ---------------------------------------------------------------------------
 create table if not exists public.support_agents (
   id text primary key,
@@ -108,40 +104,35 @@ create table if not exists public.support_agents (
 
 alter table public.support_agents enable row level security;
 
-drop policy if exists "support_agents_select" on public.support_agents;
-drop policy if exists "support_agents_insert" on public.support_agents;
-drop policy if exists "support_agents_update" on public.support_agents;
-drop policy if exists "support_agents_delete" on public.support_agents;
+do $$ begin
+  create policy "support_agents_select"
+    on public.support_agents for select to authenticated using (true);
+exception when duplicate_object then null;
+end $$;
 
-create policy "support_agents_select"
-  on public.support_agents
-  for select
-  to authenticated
-  using (true);
+do $$ begin
+  create policy "support_agents_insert"
+    on public.support_agents for insert to authenticated with check (true);
+exception when duplicate_object then null;
+end $$;
 
-create policy "support_agents_insert"
-  on public.support_agents
-  for insert
-  to authenticated
-  with check (true);
+do $$ begin
+  create policy "support_agents_update"
+    on public.support_agents for update to authenticated using (true) with check (true);
+exception when duplicate_object then null;
+end $$;
 
-create policy "support_agents_update"
-  on public.support_agents
-  for update
-  to authenticated
-  using (true)
-  with check (true);
-
-create policy "support_agents_delete"
-  on public.support_agents
-  for delete
-  to authenticated
-  using (public.is_support_master());
+do $$ begin
+  create policy "support_agents_delete"
+    on public.support_agents for delete to authenticated
+    using (public.is_support_master());
+exception when duplicate_object then null;
+end $$;
 
 grant select, insert, update, delete on public.support_agents to authenticated;
 
 -- ---------------------------------------------------------------------------
--- Erros — compartilhado entre autenticados (igual ao cronograma)
+-- Erros
 -- ---------------------------------------------------------------------------
 create table if not exists public.support_errors (
   id uuid primary key default gen_random_uuid(),
@@ -165,40 +156,34 @@ create index if not exists support_errors_occurred_at_idx
 
 alter table public.support_errors enable row level security;
 
-drop policy if exists "support_errors_select" on public.support_errors;
-drop policy if exists "support_errors_insert" on public.support_errors;
-drop policy if exists "support_errors_update" on public.support_errors;
-drop policy if exists "support_errors_delete" on public.support_errors;
+do $$ begin
+  create policy "support_errors_select"
+    on public.support_errors for select to authenticated using (true);
+exception when duplicate_object then null;
+end $$;
 
-create policy "support_errors_select"
-  on public.support_errors
-  for select
-  to authenticated
-  using (true);
+do $$ begin
+  create policy "support_errors_insert"
+    on public.support_errors for insert to authenticated with check (true);
+exception when duplicate_object then null;
+end $$;
 
-create policy "support_errors_insert"
-  on public.support_errors
-  for insert
-  to authenticated
-  with check (true);
+do $$ begin
+  create policy "support_errors_update"
+    on public.support_errors for update to authenticated using (true) with check (true);
+exception when duplicate_object then null;
+end $$;
 
-create policy "support_errors_update"
-  on public.support_errors
-  for update
-  to authenticated
-  using (true)
-  with check (true);
-
-create policy "support_errors_delete"
-  on public.support_errors
-  for delete
-  to authenticated
-  using (true);
+do $$ begin
+  create policy "support_errors_delete"
+    on public.support_errors for delete to authenticated using (true);
+exception when duplicate_object then null;
+end $$;
 
 grant select, insert, update, delete on public.support_errors to authenticated;
 
 -- ---------------------------------------------------------------------------
--- Realtime (sync instantâneo entre navegadores)
+-- Realtime
 -- ---------------------------------------------------------------------------
 do $$
 begin
