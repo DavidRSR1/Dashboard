@@ -38,6 +38,13 @@
     </header>
 
     <main class="mx-auto max-w-7xl space-y-4 px-4 py-6">
+      <SupportTeamPanel
+        :agents="agents"
+        @add="handleAddAgent"
+        @update-color="handleUpdateAgentColor"
+        @remove="handleRemoveAgent"
+      />
+
       <div class="grid gap-4 lg:grid-cols-2">
         <WeeklyErrorsSummary :summary="weeklySummary" />
         <MonthlyErrorsSummary :summary="monthlySummary" @select-day="selectDay" />
@@ -56,22 +63,29 @@
         v-if="selectedDateKey"
         :date-key="selectedDateKey"
         :errors="selectedDayErrors"
+        :agents="agents"
         @clear="selectedDateKey = null"
         @edit="openEdit"
         @remove="handleRemove"
       />
 
-      <ErrorListTable :errors="errors" @edit="openEdit" @remove="handleRemove" />
+      <ErrorListTable
+        :errors="errors"
+        :agents="agents"
+        @edit="openEdit"
+        @remove="handleRemove"
+      />
 
       <p class="text-xs text-slate-500">
-        Os registros ficam salvos neste navegador (localStorage). Marcadores do calendário refletem
-        volume e severidade do dia (cinza → azul → âmbar → vermelho).
+        Os registros ficam salvos neste navegador (localStorage). Cada membro do time tem uma cor
+        fixa para identificar quem resolveu ou transferiu o chamado.
       </p>
     </main>
 
     <ErrorFormModal
       :open="modalOpen"
       :initial="editing"
+      :agents="agents"
       @close="closeModal"
       @save="handleSave"
     />
@@ -90,16 +104,29 @@ import {
   listSupportErrors,
   updateSupportError,
 } from "@/lib/supportErrors";
-import type { SupportError, SupportErrorFormData } from "@/types/supportErrors";
+import {
+  createSupportAgent,
+  deleteSupportAgent,
+  listSupportAgents,
+  updateSupportAgentColor,
+} from "@/lib/supportTeam";
+import type {
+  SupportAgent,
+  SupportAgentColorId,
+  SupportError,
+  SupportErrorFormData,
+} from "@/types/supportErrors";
 import ErrorCalendar from "@/components/support-errors/ErrorCalendar.vue";
 import ErrorDayDetail from "@/components/support-errors/ErrorDayDetail.vue";
 import ErrorFormModal from "@/components/support-errors/ErrorFormModal.vue";
 import ErrorListTable from "@/components/support-errors/ErrorListTable.vue";
 import MonthlyErrorsSummary from "@/components/support-errors/MonthlyErrorsSummary.vue";
+import SupportTeamPanel from "@/components/support-errors/SupportTeamPanel.vue";
 import WeeklyErrorsSummary from "@/components/support-errors/WeeklyErrorsSummary.vue";
 
 const userEmail = ref<string | null>(null);
 const errors = ref<SupportError[]>([]);
+const agents = ref<SupportAgent[]>([]);
 const selectedDateKey = ref<string | null>(null);
 const modalOpen = ref(false);
 const editing = ref<SupportError | null>(null);
@@ -112,6 +139,7 @@ const selectedDayErrors = computed(() =>
 
 function refresh() {
   errors.value = listSupportErrors();
+  agents.value = listSupportAgents();
 }
 
 function selectDay(dateKey: string) {
@@ -146,6 +174,24 @@ function handleSave(form: SupportErrorFormData) {
 function handleRemove(id: string) {
   if (!confirm("Excluir este registro de erro?")) return;
   deleteSupportError(id);
+  refresh();
+}
+
+function handleAddAgent(payload: { name: string; colorId?: SupportAgentColorId }) {
+  createSupportAgent(payload.name, payload.colorId);
+  refresh();
+}
+
+function handleUpdateAgentColor(payload: { id: string; colorId: SupportAgentColorId }) {
+  updateSupportAgentColor(payload.id, payload.colorId);
+  refresh();
+}
+
+function handleRemoveAgent(id: string) {
+  if (!confirm("Remover este agente do time? Os registros antigos perdem a cor vinculada.")) {
+    return;
+  }
+  deleteSupportAgent(id);
   refresh();
 }
 

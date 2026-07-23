@@ -30,11 +30,36 @@
       >
         <div class="flex flex-wrap items-start justify-between gap-2">
           <div class="min-w-0 flex-1">
-            <p class="text-sm font-medium text-slate-900">{{ item.description }}</p>
+            <p class="text-sm font-medium text-slate-900">{{ item.title }}</p>
+            <p class="mt-1 whitespace-pre-wrap text-sm text-slate-700">{{ item.description }}</p>
+            <p
+              v-if="item.resolution"
+              class="mt-2 rounded-md border border-emerald-100 bg-emerald-50/70 px-2.5 py-2 text-xs text-emerald-900"
+            >
+              <span class="font-semibold">Resolução:</span>
+              {{ item.resolution }}
+            </p>
             <p class="mt-1 text-xs text-slate-500">
               {{ formatDateTimeBR(item.occurred_at) }} · {{ item.module }}
               <span v-if="item.requester"> · {{ item.requester }}</span>
             </p>
+            <div class="mt-2 flex flex-wrap gap-1.5">
+              <SupportAgentBadge
+                v-if="agentOf(item.agent_id)"
+                :agent="agentOf(item.agent_id)"
+                prefix="Resp.:"
+              />
+              <SupportAgentBadge
+                v-if="item.status === 'resolvido' && agentOf(item.resolved_by_id)"
+                :agent="agentOf(item.resolved_by_id)"
+                prefix="Resolveu:"
+              />
+              <SupportAgentBadge
+                v-if="item.status === 'encaminhado_n2' && agentOf(item.transferred_by_id)"
+                :agent="agentOf(item.transferred_by_id)"
+                prefix="Transferiu:"
+              />
+            </div>
           </div>
           <div class="flex flex-wrap gap-1">
             <span
@@ -80,12 +105,15 @@ import {
   SUPPORT_ERROR_SEVERITY_LABELS,
   SUPPORT_ERROR_STATUS_COLORS,
   SUPPORT_ERROR_STATUS_LABELS,
+  type SupportAgent,
   type SupportError,
 } from "@/types/supportErrors";
+import SupportAgentBadge from "@/components/support-errors/SupportAgentBadge.vue";
 
 const props = defineProps<{
   dateKey: string;
   errors: SupportError[];
+  agents: SupportAgent[];
 }>();
 
 const emit = defineEmits<{
@@ -95,4 +123,11 @@ const emit = defineEmits<{
 }>();
 
 const label = computed(() => formatDateBR(props.dateKey));
+
+const agentsMap = computed(() => new Map(props.agents.map((agent) => [agent.id, agent])));
+
+function agentOf(id: string | null) {
+  if (!id) return null;
+  return agentsMap.value.get(id) ?? null;
+}
 </script>

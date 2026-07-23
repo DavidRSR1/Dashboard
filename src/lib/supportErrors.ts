@@ -8,15 +8,59 @@ import { SUPPORT_ERROR_SEVERITY_RANK } from "@/types/supportErrors";
 
 const STORAGE_KEY = "support-errors";
 
+function normalizeError(raw: Partial<SupportError> & { id: string }): SupportError {
+  const description = raw.description ?? "";
+  const title = (raw.title ?? "").trim() || description.slice(0, 80) || "Sem título";
+
+  return {
+    id: raw.id,
+    occurred_at: raw.occurred_at ?? new Date().toISOString(),
+    title,
+    description,
+    resolution: raw.resolution ?? null,
+    module: raw.module ?? "",
+    status: raw.status ?? "novo",
+    severity: raw.severity ?? "medio",
+    requester: raw.requester ?? null,
+    agent_id: raw.agent_id ?? null,
+    resolved_by_id: raw.resolved_by_id ?? null,
+    transferred_by_id: raw.transferred_by_id ?? null,
+    created_at: raw.created_at ?? new Date().toISOString(),
+    updated_at: raw.updated_at ?? new Date().toISOString(),
+  };
+}
+
 function readAll(): SupportError[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return [];
-    const parsed = JSON.parse(raw) as SupportError[];
-    return Array.isArray(parsed) ? parsed : [];
+    const parsed = JSON.parse(raw) as Partial<SupportError>[];
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .filter((item): item is Partial<SupportError> & { id: string } => Boolean(item?.id))
+      .map(normalizeError);
   } catch {
     return [];
   }
+}
+
+function resolveAgentFields(form: SupportErrorFormData): Pick<
+  SupportError,
+  "agent_id" | "resolved_by_id" | "transferred_by_id"
+> {
+  const agentId = form.agent_id.trim() || null;
+  const resolvedBy =
+    form.status === "resolvido" ? form.resolved_by_id.trim() || agentId : null;
+  const transferredBy =
+    form.status === "encaminhado_n2"
+      ? form.transferred_by_id.trim() || agentId
+      : null;
+
+  return {
+    agent_id: agentId,
+    resolved_by_id: resolvedBy,
+    transferred_by_id: transferredBy,
+  };
 }
 
 function writeAll(errors: SupportError[]): void {
@@ -47,11 +91,14 @@ export function createSupportError(form: SupportErrorFormData): SupportError {
   const item: SupportError = {
     id: createId(),
     occurred_at: toIsoFromLocalInput(form.occurred_at),
+    title: form.title.trim(),
     description: form.description.trim(),
+    resolution: form.resolution.trim() || null,
     module: form.module.trim(),
     status: form.status,
     severity: form.severity,
     requester: form.requester.trim() || null,
+    ...resolveAgentFields(form),
     created_at: now,
     updated_at: now,
   };
@@ -73,11 +120,14 @@ export function updateSupportError(
   const updated: SupportError = {
     ...all[index],
     occurred_at: toIsoFromLocalInput(form.occurred_at),
+    title: form.title.trim(),
     description: form.description.trim(),
+    resolution: form.resolution.trim() || null,
     module: form.module.trim(),
     status: form.status,
     severity: form.severity,
     requester: form.requester.trim() || null,
+    ...resolveAgentFields(form),
     updated_at: new Date().toISOString(),
   };
 
@@ -176,7 +226,7 @@ function emptyStatusCounts(): Record<SupportErrorStatus, number> {
 
 function topByField(
   errors: SupportError[],
-  field: "module" | "description",
+  field: "module" | "title",
   limit = 3,
 ): FrequencyItem[] {
   const map = new Map<string, number>();
@@ -212,7 +262,7 @@ export function buildWeeklySummary(
     resolutionRate: total === 0 ? 0 : Math.round((resolved / total) * 100),
     byStatus,
     topModules: topByField(weekErrors, "module"),
-    topMessages: topByField(weekErrors, "description"),
+    topMessages: topByField(weekErrors, "title"),
     weekLabel: `${fmt(start)} a ${fmt(end)}`,
   };
 }
@@ -295,10 +345,15 @@ export function formFromSupportError(error: SupportError): SupportErrorFormData 
 
   return {
     occurred_at,
+    title: error.title,
     description: error.description,
+    resolution: error.resolution ?? "",
     module: error.module,
     status: error.status,
     severity: error.severity,
     requester: error.requester ?? "",
+    agent_id: error.agent_id ?? "",
+    resolved_by_id: error.resolved_by_id ?? "",
+    transferred_by_id: error.transferred_by_id ?? "",
   };
 }

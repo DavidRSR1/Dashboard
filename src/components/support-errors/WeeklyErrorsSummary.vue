@@ -40,7 +40,7 @@
         <p v-else class="mt-2 text-sm text-slate-400">Sem dados nesta semana.</p>
       </div>
       <div>
-        <h4 class="text-xs font-semibold uppercase text-slate-500">Erros mais frequentes</h4>
+        <h4 class="text-xs font-semibold uppercase text-slate-500">Títulos mais frequentes</h4>
         <ul v-if="summary.topMessages.length" class="mt-2 space-y-1.5">
           <li
             v-for="item in summary.topMessages"
