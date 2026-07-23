@@ -67,8 +67,12 @@
             <input
               v-model="form.categoria"
               type="text"
+              list="cronograma-categorias-options"
               class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900"
             />
+            <datalist id="cronograma-categorias-options">
+              <option v-for="cat in categoryOptions" :key="cat" :value="cat" />
+            </datalist>
           </div>
         </div>
 
@@ -112,7 +116,7 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, watch } from "vue";
+import { computed, reactive, watch } from "vue";
 import {
   STATUS_OPTIONS,
   type CronogramaAtividade,
@@ -124,6 +128,7 @@ import { toInputTime } from "@/lib/deadlines";
 const props = defineProps<{
   open: boolean;
   initial?: CronogramaAtividade | null;
+  categoryOptions?: string[];
 }>();
 
 const emit = defineEmits<{
@@ -131,13 +136,15 @@ const emit = defineEmits<{
   submit: [data: CronogramaFormData];
 }>();
 
+const categoryOptions = computed(() => props.categoryOptions ?? []);
+
 const emptyForm = (): CronogramaFormData => ({
   atividade: "",
   data_back_banco: "",
   data_front: "",
   hora_fim: "",
   status: "nao_iniciado",
-  categoria: "Gamificação",
+  categoria: categoryOptions.value[0] ?? "Gamificação",
   pr_url: "",
   observacoes: "",
 });

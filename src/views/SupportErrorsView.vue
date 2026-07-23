@@ -43,29 +43,26 @@
       </p>
       <p v-else-if="loadError" class="rounded-xl border border-red-200 bg-red-50 px-4 py-4 text-sm text-red-700 shadow-sm">
         {{ loadError }}
-        <span class="mt-1 block text-xs text-red-600">
-          Aplique o SQL em supabase/support_errors_shared.sql no Supabase.
+        <span class="mt-2 block text-xs text-red-600">
+          No Supabase → SQL Editor, execute o arquivo
+          <code class="rounded bg-red-100 px-1">supabase/support_errors_shared.sql</code>
+          (inteiro). Depois recarregue a página.
         </span>
       </p>
 
       <template v-else>
-        <SupportAccessPanel
-          v-if="isMaster"
-          :master-email="userEmail"
-        />
-
-        <SupportTeamPanel
-          :agents="agents"
-          :current-agent="currentAgent"
-          :is-master="isMaster"
-          @add="handleAddAgent"
-          @update-color="handleUpdateAgentColor"
-          @remove="handleRemoveAgent"
-        />
-
-        <div class="grid gap-4 lg:grid-cols-2">
-          <WeeklyErrorsSummary :summary="weeklySummary" />
-          <MonthlyErrorsSummary :summary="monthlySummary" @select-day="selectDay" />
+        <div class="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-emerald-100 bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
+          <span>
+            Dados compartilhados · {{ errors.length }} erro(s) · sync
+            {{ realtimeOk ? "ao vivo" : "a cada 30s" }}
+          </span>
+          <button
+            type="button"
+            class="font-medium underline hover:no-underline"
+            @click="refresh(false)"
+          >
+            Atualizar agora
+          </button>
         </div>
 
         <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
@@ -93,11 +90,6 @@
           @edit="openEdit"
           @remove="handleRemove"
         />
-
-        <p class="text-xs text-slate-500">
-          Os registros são compartilhados com todo o time (Supabase). Atualização automática a cada
-          30s.
-        </p>
       </template>
     </main>
 
@@ -113,11 +105,11 @@
 </template>
 
 <script setup lang="ts">
+import type { RealtimeChannel } from "@supabase/supabase-js";
 import { computed, onMounted, onUnmounted, ref } from "vue";
+import { useRoute } from "vue-router";
 import { supabase } from "@/lib/supabase/client";
 import {
-  buildMonthlySummary,
-  buildWeeklySummary,
   createSupportError,
   deleteSupportError,
   errorsForDateKey,
@@ -125,18 +117,13 @@ import {
   updateSupportError,
 } from "@/lib/supportErrors";
 import {
-  createSupportAgent,
-  deleteSupportAgent,
   emailLocalPart,
   ensureSupportAgentFromEmail,
   listSupportAgents,
-  updateSupportAgentColor,
 } from "@/lib/supportTeam";
-import { isSupportMaster } from "@/lib/supportAccess";
 import { SYNC_INTERVAL_MS } from "@/lib/syncInterval";
 import type {
   SupportAgent,
-  SupportAgentColorId,
   SupportError,
   SupportErrorFormData,
 } from "@/types/supportErrors";
@@ -144,11 +131,8 @@ import ErrorCalendar from "@/components/support-errors/ErrorCalendar.vue";
 import ErrorDayDetail from "@/components/support-errors/ErrorDayDetail.vue";
 import ErrorFormModal from "@/components/support-errors/ErrorFormModal.vue";
 import ErrorListTable from "@/components/support-errors/ErrorListTable.vue";
-import MonthlyErrorsSummary from "@/components/support-errors/MonthlyErrorsSummary.vue";
-import SupportAccessPanel from "@/components/support-errors/SupportAccessPanel.vue";
-import SupportTeamPanel from "@/components/support-errors/SupportTeamPanel.vue";
-import WeeklyErrorsSummary from "@/components/support-errors/WeeklyErrorsSummary.vue";
 
+const route = useRoute();
 const userEmail = ref<string | null>(null);
 const currentAgent = ref<SupportAgent | null>(null);
 const errors = ref<SupportError[]>([]);
@@ -158,16 +142,15 @@ const modalOpen = ref(false);
 const editing = ref<SupportError | null>(null);
 const loading = ref(true);
 const loadError = ref<string | null>(null);
+const realtimeOk = ref(false);
 
 let syncTimer: ReturnType<typeof setInterval> | null = null;
+let channel: RealtimeChannel | null = null;
 
 const displayUser = computed(() =>
   userEmail.value ? emailLocalPart(userEmail.value) : null,
 );
-const isMaster = computed(() => isSupportMaster(userEmail.value));
 
-const weeklySummary = computed(() => buildWeeklySummary(errors.value));
-const monthlySummary = computed(() => buildMonthlySummary(errors.value));
 const selectedDayErrors = computed(() =>
   selectedDateKey.value ? errorsForDateKey(errors.value, selectedDateKey.value) : [],
 );
@@ -249,39 +232,26 @@ async function handleRemove(id: string) {
   await refresh();
 }
 
-async function handleAddAgent(payload: { emailOrUser: string; colorId?: SupportAgentColorId }) {
-  if (!isMaster.value) return;
-  const result = await createSupportAgent(payload.emailOrUser, payload.colorId);
-  if (result.error) {
-    alert(result.error);
-    return;
-  }
-  await refresh();
-}
-
-async function handleUpdateAgentColor(payload: { id: string; colorId: SupportAgentColorId }) {
-  const canEdit =
-    isMaster.value || (currentAgent.value && currentAgent.value.id === payload.id);
-  if (!canEdit) return;
-
-  const result = await updateSupportAgentColor(payload.id, payload.colorId);
-  if (result.error) {
-    alert(result.error);
-    return;
-  }
-  await refresh();
-}
-
-async function handleRemoveAgent(id: string) {
-  if (!isMaster.value) return;
-  if (currentAgent.value && id === currentAgent.value.id) return;
-  if (!confirm("Remover este agente do time?")) return;
-  const result = await deleteSupportAgent(id);
-  if (result.error) {
-    alert(result.error);
-    return;
-  }
-  await refresh();
+function subscribeRealtime() {
+  channel = supabase
+    .channel("support-errors-shared")
+    .on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "support_errors" },
+      () => {
+        void refresh(false);
+      },
+    )
+    .on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "support_agents" },
+      () => {
+        void refresh(false);
+      },
+    )
+    .subscribe((status) => {
+      realtimeOk.value = status === "SUBSCRIBED";
+    });
 }
 
 onMounted(async () => {
@@ -290,6 +260,13 @@ onMounted(async () => {
   } = await supabase.auth.getUser();
   userEmail.value = user?.email ?? null;
   await refresh(true);
+
+  const dia = route.query.dia;
+  if (typeof dia === "string" && /^\d{4}-\d{2}-\d{2}$/.test(dia)) {
+    selectedDateKey.value = dia;
+  }
+
+  subscribeRealtime();
   syncTimer = setInterval(() => {
     void refresh(false);
   }, SYNC_INTERVAL_MS);
@@ -297,5 +274,8 @@ onMounted(async () => {
 
 onUnmounted(() => {
   if (syncTimer) clearInterval(syncTimer);
+  if (channel) {
+    void supabase.removeChannel(channel);
+  }
 });
 </script>

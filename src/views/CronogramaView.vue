@@ -57,7 +57,7 @@
         <div class="flex flex-wrap items-center gap-2">
           <span class="text-sm font-medium text-slate-600">Categoria:</span>
           <button
-            v-for="cat in categorias"
+            v-for="cat in visibleCategorias"
             :key="cat"
             class="rounded-full px-4 py-1.5 text-sm font-medium transition"
             :class="
@@ -68,6 +68,13 @@
             @click="categoria = cat"
           >
             {{ cat }}
+          </button>
+          <button
+            type="button"
+            class="rounded-full px-3 py-1.5 text-xs font-medium text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50"
+            @click="categoryManagerOpen = true"
+          >
+            Gerenciar
           </button>
         </div>
         <div class="flex flex-wrap items-center gap-3">
@@ -113,8 +120,19 @@
     <ActivityFormModal
       :open="formOpen"
       :initial="editing"
+      :category-options="formCategoryOptions"
       @close="formOpen = false"
       @submit="handleFormSubmit"
+    />
+
+    <CategoryManager
+      :open="categoryManagerOpen"
+      :categorias="catalogCategorias"
+      @close="categoryManagerOpen = false"
+      @create="handleCreateCategoria"
+      @rename="handleRenameCategoria"
+      @archive="handleArchiveCategoria"
+      @unarchive="handleUnarchiveCategoria"
     />
   </div>
 </template>
@@ -146,7 +164,17 @@ import KanbanHorizonToggle from "@/components/cronograma/KanbanHorizonToggle.vue
 import CalendarTimeline from "@/components/cronograma/CalendarTimeline.vue";
 import { parseStoredKanbanHorizon, type KanbanHorizon } from "@/lib/kanbanFilters";
 import ActivityListTable from "@/components/cronograma/ActivityListTable.vue";
+import CategoryManager from "@/components/cronograma/CategoryManager.vue";
 import { useSupportAccess } from "@/composables/useSupportAccess";
+import {
+  activeCategoriaNames,
+  createCronogramaCategoria,
+  listCronogramaCategorias,
+  renameCronogramaCategoria,
+  setCronogramaCategoriaArchived,
+  syncCategoriasFromNames,
+  type CronogramaCategoria,
+} from "@/lib/cronogramaCategories";
 
 const router = useRouter();
 
@@ -157,6 +185,7 @@ const { allowed: canSeeSupportErrors } = useSupportAccess();
 let syncTimer: ReturnType<typeof setInterval> | null = null;
 
 const atividades = ref<CronogramaAtividade[]>([]);
+const catalogCategorias = ref<CronogramaCategoria[]>([]);
 const loading = ref(true);
 const error = ref<string | null>(null);
 const categoria = ref("Gamificação");
@@ -168,13 +197,28 @@ const kanbanHorizon = ref<KanbanHorizon>(
 );
 const formOpen = ref(false);
 const editing = ref<CronogramaAtividade | null>(null);
+const categoryManagerOpen = ref(false);
 const userEmail = ref<string | null>(null);
 const gestorLink = ref<string | null>(null);
 const reminderOffsets = ref<ReminderOffset[]>([]);
 
-const categorias = computed(() =>
-  Array.from(new Set(atividades.value.map((a) => a.categoria))),
+const activityCategoriaNames = computed(() =>
+  Array.from(new Set(atividades.value.map((a) => a.categoria).filter(Boolean))),
 );
+
+const visibleCategorias = computed(() => {
+  const active = activeCategoriaNames(catalogCategorias.value);
+  if (active.length > 0) return active;
+  return activityCategoriaNames.value;
+});
+
+const formCategoryOptions = computed(() => {
+  const names = new Set([
+    ...activeCategoriaNames(catalogCategorias.value),
+    ...activityCategoriaNames.value,
+  ]);
+  return [...names].sort((a, b) => a.localeCompare(b, "pt-BR"));
+});
 
 const filtered = computed(() =>
   atividades.value.filter((a) => a.categoria === categoria.value),
@@ -182,6 +226,33 @@ const filtered = computed(() =>
 
 watch(viewMode, (mode) => localStorage.setItem("cronograma-view", mode));
 watch(kanbanHorizon, (horizon) => localStorage.setItem("cronograma-horizon", horizon));
+
+watch(visibleCategorias, (cats) => {
+  if (cats.length > 0 && !cats.includes(categoria.value)) {
+    categoria.value = cats[0];
+  }
+});
+
+async function loadCategorias() {
+  const names = activityCategoriaNames.value;
+  const synced = await syncCategoriasFromNames(names);
+  if (synced.error) {
+    const listed = await listCronogramaCategorias();
+    if (!listed.error) {
+      catalogCategorias.value = listed.data;
+      return;
+    }
+    catalogCategorias.value = names.map((name) => ({
+      id: name,
+      name,
+      archived_at: null,
+      created_at: "",
+      updated_at: "",
+    }));
+    return;
+  }
+  catalogCategorias.value = synced.data;
+}
 
 async function loadAtividades(silent = false) {
   if (!silent) {
@@ -201,6 +272,7 @@ async function loadAtividades(silent = false) {
     }
   } else {
     atividades.value = (data as CronogramaAtividade[]) ?? [];
+    await loadCategorias();
   }
 
   if (!silent) loading.value = false;
@@ -218,6 +290,50 @@ async function refreshPreferences() {
 
 async function syncCronograma() {
   await Promise.all([loadAtividades(true), refreshPreferences()]);
+}
+
+async function handleCreateCategoria(name: string) {
+  const result = await createCronogramaCategoria(name);
+  if (result.error) {
+    alert(result.error);
+    return;
+  }
+  await loadCategorias();
+  categoria.value = name.trim();
+}
+
+async function handleRenameCategoria(payload: {
+  id: string;
+  oldName: string;
+  newName: string;
+}) {
+  const result = await renameCronogramaCategoria(payload.id, payload.oldName, payload.newName);
+  if (result.error) {
+    alert(result.error);
+    return;
+  }
+  if (categoria.value === payload.oldName) {
+    categoria.value = payload.newName.trim();
+  }
+  await loadAtividades();
+}
+
+async function handleArchiveCategoria(id: string) {
+  const result = await setCronogramaCategoriaArchived(id, true);
+  if (result.error) {
+    alert(result.error);
+    return;
+  }
+  await loadCategorias();
+}
+
+async function handleUnarchiveCategoria(id: string) {
+  const result = await setCronogramaCategoriaArchived(id, false);
+  if (result.error) {
+    alert(result.error);
+    return;
+  }
+  await loadCategorias();
 }
 
 onMounted(async () => {
@@ -257,6 +373,10 @@ async function handleFormSubmit(data: CronogramaFormData) {
 
   const { data: userData } = await supabase.auth.getUser();
   const userId = userData.user?.id ?? null;
+
+  if (data.categoria.trim()) {
+    await createCronogramaCategoria(data.categoria);
+  }
 
   if (editing.value) {
     const { error: updateError } = await updateActivityWithEvents(editing.value, data, userId);

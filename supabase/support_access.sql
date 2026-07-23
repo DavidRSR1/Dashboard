@@ -1,4 +1,2 @@
--- Use o script completo (acesso + agentes + erros compartilhados):
+-- ATENÇÃO: use o arquivo completo abaixo (não este stub):
 -- supabase/support_errors_shared.sql
---
--- Cole o conteúdo desse arquivo no SQL Editor do Supabase.
